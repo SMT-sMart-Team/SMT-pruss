@@ -29,6 +29,9 @@ static void pwm_setup(void)
 {
 	u8 i;
 
+    // init output
+    __R30 = 0;
+
 	cfg.enmask = 0;
 	for (i = 0; i < MAX_PWMS; i++)
 		cfg.hilo[i][0] = cfg.hilo[i][1] = PRU_us(200);
