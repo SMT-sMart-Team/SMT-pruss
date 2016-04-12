@@ -19,6 +19,8 @@ volatile register uint32_t __R31;
 #endif
 
 
+#define VALID_CH 4
+unsigned char ch_num_period = 0;
 struct pwm_cmd_l cfg;
 
 static void pwm_setup(void)
@@ -120,11 +122,12 @@ int main() {
 #else
     				    __R30 |= (msk&(1U<<i));
 #endif
-                        nextp[0] = cnt;	//since we start high, wait this amount 
 
                         // first enable
                         if (enmask == (msk&(1U<<i)))
             			    cnt = read_PIEP_COUNT();
+
+                        nextp[0] = cnt;	//since we start high, wait this amount
                         deltamin = 0;
                         next = cnt;
                 }
@@ -142,12 +145,15 @@ int main() {
                 
                 //get and set pwm_vals
                 if (PWM_EN_MASK & (msk&(1U<<i))) {
+                	if(b_true == full_period)
+                	{
 
             			//nextp = &next_hi_lo[i * 3];
                 		nextp[1] = PWM_CMD->periodhi[i][1];
                         period = PWM_CMD->periodhi[i][0]; 
                 		nextp[2] =period - nextp[1];
-                        
+                    
+                    }
                 }
                 PWM_CMD->hilo_read[i][0] = nextp[0];
                 PWM_CMD->hilo_read[i][1] = nextp[1];
@@ -184,10 +190,17 @@ int main() {
 					stmask &= ~(1U << (_i)); \
 					clrmsk &= ~(1U << (_i)); \
 					tnext += lo; \
+				    /* flag when all motor channel finish full period */ \
+					ch_num_period++; \
+				    if(!((ch_num_period) %= VALID_CH)) \
+					{ \
+					    full_period = b_true; \
+				    } \
 				} else { \
 					stmask |= (1U << (_i)); \
 					setmsk |= (1U << (_i)); \
 					tnext += hi; \
+					full_period = b_false; \
 				} \
 			} \
 			if (delta <= deltamin) { \
