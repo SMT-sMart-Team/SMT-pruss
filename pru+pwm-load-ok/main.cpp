@@ -20,6 +20,8 @@ volatile register uint32_t __R31;
 
 
 #define VALID_CH 4
+
+unsigned char full_period = 1;
 unsigned char ch_num_period = 0;
 struct pwm_cmd_l cfg;
 
@@ -145,7 +147,7 @@ int main() {
                 
                 //get and set pwm_vals
                 if (PWM_EN_MASK & (msk&(1U<<i))) {
-                	if(b_true == full_period)
+                	if(full_period)
                 	{
 
             			//nextp = &next_hi_lo[i * 3];
@@ -194,13 +196,13 @@ int main() {
 					ch_num_period++; \
 				    if(!((ch_num_period) %= VALID_CH)) \
 					{ \
-					    full_period = b_true; \
+					    full_period = 1; \
 				    } \
 				} else { \
 					stmask |= (1U << (_i)); \
 					setmsk |= (1U << (_i)); \
 					tnext += hi; \
-					full_period = b_false; \
+					full_period = 0; \
 				} \
 			} \
 			if (delta <= deltamin) { \
