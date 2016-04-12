@@ -19,7 +19,7 @@ volatile register uint32_t __R31;
 #endif
 
 
-#define VALID_CH 4
+#define MOTOR_CH 4
 
 unsigned char full_period = 1;
 unsigned char ch_num_period = 0;
@@ -108,7 +108,7 @@ int main() {
 	while(1) {
 
 
-        //if(PWM_CMD->magic == PWM_CMD_MAGIC) 
+        if(PWM_CMD->magic == PWM_CMD_MAGIC) 
         {
 			msk = PWM_CMD->enmask;
             for(i=0, nextp = &next_hi_lo[0][0]; i<MAX_PWMS; 
@@ -147,14 +147,24 @@ int main() {
                 
                 //get and set pwm_vals
                 if (PWM_EN_MASK & (msk&(1U<<i))) {
-                	if(full_period)
-                	{
 
-            			//nextp = &next_hi_lo[i * 3];
-                		nextp[1] = PWM_CMD->periodhi[i][1];
+                    // make sure motor channels should be sync
+                    if(i < MOTOR_CH) 
+                    {
+                	    if(full_period)
+                	    {
+
+            		    	//nextp = &next_hi_lo[i * 3];
+                	    	nextp[1] = PWM_CMD->periodhi[i][1];
+                            period = PWM_CMD->periodhi[i][0]; 
+                	    	nextp[2] =period - nextp[1];
+                        }
+                    }
+                    else
+                    {
+                	    nextp[1] = PWM_CMD->periodhi[i][1];
                         period = PWM_CMD->periodhi[i][0]; 
-                		nextp[2] =period - nextp[1];
-                    
+                	    nextp[2] =period - nextp[1];
                     }
                 }
                 PWM_CMD->hilo_read[i][0] = nextp[0];
@@ -194,7 +204,7 @@ int main() {
 					tnext += lo; \
 				    /* flag when all motor channel finish full period */ \
 					ch_num_period++; \
-				    if(!((ch_num_period) %= VALID_CH)) \
+				    if(!((ch_num_period) %= MOTOR_CH)) \
 					{ \
 					    full_period = 1; \
 				    } \
@@ -268,9 +278,6 @@ int main() {
 		/* loop while nothing changes */
 		do {
 			cnt = read_PIEP_COUNT();
-			if(PWM_CMD->magic == PWM_CMD_MAGIC){
-				break;
-			}
 		} while (((next - cnt) & (1U << 31)) == 0);
 	}
 	return 0;
