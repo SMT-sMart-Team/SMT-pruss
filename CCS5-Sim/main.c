@@ -14,8 +14,11 @@
 #include "pru_defs.h"
 #include "prucomm.h"
 
+#define SMT_PRU_PWM
 
-#define VALID_CH 8
+#define MOTOR_CH_NUM 8
+#define MOTOR_CH_MASK 0xFF
+
 unsigned char ch_num_period = 0;
 struct pwm_cmd_l cfg;
 
@@ -42,7 +45,8 @@ enum control_flag {
 	En_all,
 	Period_change1,
 	Period_change2,
-	Disable_ch,
+	Disable_ch1,
+	Enable_ch1,
 	Disable_all
 };
 
@@ -53,7 +57,8 @@ enum bool_type {
 
 enum control_flag flag = Init;
 enum bool_type full_period = b_true;
-unsigned char time_flow_ctr[5] = {2, 4, 600000, 1080000, 2110000};
+#define TIME_INTV 10000
+unsigned int time_flow_ctr[8] = {2, 4, 8, 60, 108, 2110, 2620, 3230};
 unsigned char time_flow_idx = 0;
 
 #define SEED 0xbeef
@@ -73,7 +78,7 @@ unsigned int rand_period_change()
 
 void update_flag()
 {
-	static unsigned char ctr = 0;
+	static unsigned int ctr = 0;
 	unsigned int ii = 0;
 	unsigned int incr = 60;
 	unsigned char first_prt = 1;
@@ -84,7 +89,7 @@ void update_flag()
 
 	// ctl flag via time flow
 
-	for(ii = 0; ii < 5; ii++)
+	for(ii = 0; ii < Disable_all; ii++)
 	{
 		if(ctr == time_flow_ctr[ii])
 		{
@@ -126,6 +131,7 @@ void update_flag()
 			PWM_CMD->periodhi[ii][1] = PRU_us(1100);
 
 		}
+		PWM_CMD->magic = PWM_CMD_MAGIC;
 		if(first_prt)
 		{
 			first_prt = 0;
@@ -141,25 +147,27 @@ void update_flag()
 			printf("=========================================================\n");
 			printf("Enter En_all state~!\n");
 		}
+		PWM_CMD->magic = PWM_CMD_MAGIC;
 		break;
 	case Period_change1:
-		PWM_CMD->enmask = 0xFF;
+		PWM_CMD->enmask = 0x0F;
 		if(first_prt)
 		{
 			first_prt = 0;
 			printf("=========================================================\n");
 			printf("Enter Period_change[111] state~!\n");
 		}
-		for(ii = 0; ii < VALID_CH; ii++)
+		for(ii = 0; ii < MOTOR_CH_NUM; ii++)
 		{
 			//incr += ii*incr;
 			incr = rand_period_change();
 			PWM_CMD->periodhi[ii][0] = PRU_us(2500);
 			PWM_CMD->periodhi[ii][1] = PRU_us((1500 + incr)%2500);
 			//printf("Period_change[111]: rand_period_change: [[%08x]]\n", incr);
-			printf("CH[%d]: hi: %08x lo: %08x \n", ii, PWM_CMD->periodhi[ii][1], PWM_CMD->periodhi[ii][0] - PWM_CMD->periodhi[ii][1]);
+			//printf("CH[%d]: hi: %08x lo: %08x \n", ii, PWM_CMD->periodhi[ii][1], PWM_CMD->periodhi[ii][0] - PWM_CMD->periodhi[ii][1]);
 
 		}
+		PWM_CMD->magic = PWM_CMD_MAGIC;
 
 		break;
 	case Period_change2:
@@ -171,18 +179,51 @@ void update_flag()
 			printf("=========================================================\n");
 			printf("Enter Period_change[222] state~!\n");
 		}
-		for(ii = 0; ii < VALID_CH; ii++)
+		for(ii = 0; ii < MOTOR_CH_NUM; ii++)
 		{
 			incr = rand_period_change();
 			PWM_CMD->periodhi[ii][0] = PRU_us(2500);
 			PWM_CMD->periodhi[ii][1] = PRU_us((1500 - incr)%2500);
 			//printf("Period_change[222]: rand_period_change: [[%08x]]\n", incr);
-			printf("CH[%d]: hi: %08x lo: %08x \n", ii, PWM_CMD->periodhi[ii][1], PWM_CMD->periodhi[ii][0] - PWM_CMD->periodhi[ii][1]);
+			//printf("CH[%d]: hi: %08x lo: %08x \n", ii, PWM_CMD->periodhi[ii][1], PWM_CMD->periodhi[ii][0] - PWM_CMD->periodhi[ii][1]);
 		}
-
+		PWM_CMD->magic = PWM_CMD_MAGIC;
 		break;
-	case Disable_ch:
+	case Disable_ch1:
 		PWM_CMD->enmask = 0x2;
+		if(first_prt)
+		{
+			first_prt = 0;
+			printf("=========================================================\n");
+			printf("Enter Disable_ch1[111] state~!\n");
+		}
+		for(ii = 0; ii < MOTOR_CH_NUM; ii++)
+		{
+			incr = rand_period_change();
+			PWM_CMD->periodhi[ii][0] = PRU_us(2500);
+			PWM_CMD->periodhi[ii][1] = PRU_us((1500 - incr)%2500);
+			//printf("Period_change[222]: rand_period_change: [[%08x]]\n", incr);
+			//printf("CH[%d]: hi: %08x lo: %08x \n", ii, PWM_CMD->periodhi[ii][1], PWM_CMD->periodhi[ii][0] - PWM_CMD->periodhi[ii][1]);
+		}
+		PWM_CMD->magic = PWM_CMD_MAGIC;
+		break;
+	case Enable_ch1:
+		PWM_CMD->enmask = 0xF;
+		if(first_prt)
+		{
+			first_prt = 0;
+			printf("=========================================================\n");
+			printf("Enter Enable_ch1[111] state~!\n");
+		}
+		for(ii = 0; ii < MOTOR_CH_NUM; ii++)
+		{
+			incr = rand_period_change();
+			PWM_CMD->periodhi[ii][0] = PRU_us(2500);
+			PWM_CMD->periodhi[ii][1] = PRU_us((1500 - incr)%2500);
+			//printf("Period_change[222]: rand_period_change: [[%08x]]\n", incr);
+			//printf("CH[%d]: hi: %08x lo: %08x \n", ii, PWM_CMD->periodhi[ii][1], PWM_CMD->periodhi[ii][0] - PWM_CMD->periodhi[ii][1]);
+		}
+		PWM_CMD->magic = PWM_CMD_MAGIC;
 		break;
 	case Disable_all:
 		PWM_CMD->enmask = 0x0;
@@ -193,7 +234,7 @@ void update_flag()
 	}
 	ctr++;
 }
-
+#ifndef SMT_PRU_PWM
 int main(void) //(int argc, char *argv[])
 {
 	printf("Bingo, enter 1st simulator DSP APP~!\n");
@@ -261,7 +302,7 @@ int main(void) //(int argc, char *argv[])
 
 		update_flag();
 
-        //if(PWM_CMD->magic == PWM_CMD_MAGIC) 
+        if(PWM_CMD->magic == PWM_CMD_MAGIC)
         {
 			msk = PWM_CMD->enmask;
             for(i=0, nextp = &next_hi_lo[0][0]; i<MAX_PWMS; 
@@ -271,6 +312,7 @@ int main(void) //(int argc, char *argv[])
         		        enmask |= (msk&(1U<<i));
 
     				    __R30 |= (msk&(1U<<i));
+    				    printf("Enable: R30 --- %08x\n", __R30);
 
 
                         // first enable
@@ -340,7 +382,7 @@ int main(void) //(int argc, char *argv[])
 						printf("CH %d: next hi: %08x\n", _i, tnext);
 						// flag when all motor channel finish full period
 						ch_num_period++;
-						if(!((ch_num_period) %= VALID_CH))
+						if(!((ch_num_period) %= MOTOR_CH_NUM))
 						{
 							full_period = b_true;
 							printf("----------------full period--------------\n");
@@ -449,3 +491,228 @@ int main(void) //(int argc, char *argv[])
 
 	printf("Bingo, leave 1st simulator DSP APP~!\n");
 }
+#else
+
+#define TIME_SUB(x, y) ((x > y)? (x - y) : (0xFFFFFFFF - y + x))
+
+
+
+unsigned int chPWM[MAX_PWMS][2]; // 0: high, 1: low
+unsigned int nextCnt[MAX_PWMS];
+
+unsigned char chToggleIdx[MAX_PWMS]; // 0: high, 1: low
+unsigned int chToggleDelta[MAX_PWMS]; //  store low length of motor channels
+
+
+union channelMask{
+	struct {
+		// motor channels
+		unsigned int ch0:1;
+		unsigned int ch1:1;
+		unsigned int ch2:1;
+		unsigned int ch3:1;
+		unsigned int ch4:1;
+		unsigned int ch5:1;
+		unsigned int ch6:1;
+		unsigned int ch7:1;
+		unsigned int ch8:1;
+
+		// aux channels
+		unsigned int ch9:1;
+		unsigned int ch10:1;
+		unsigned int ch11:1;
+		unsigned int res:20;
+	};
+
+	unsigned int value;
+}chMask;
+
+
+unsigned int chFullPeriodMask = 0;
+
+inline void initHW()
+{
+#if 0
+	/* enable OCP master port */
+	PRUCFG_SYSCFG &= ~SYSCFG_STANDBY_INIT;
+	PRUCFG_SYSCFG = (PRUCFG_SYSCFG &
+			~(SYSCFG_IDLE_MODE_M | SYSCFG_STANDBY_MODE_M)) |
+			SYSCFG_IDLE_MODE_NO | SYSCFG_STANDBY_MODE_NO;
+
+	/* our PRU wins arbitration */
+	PRUCFG_SPP |=  SPP_PRU1_PAD_HP_EN;
+	pwm_setup();
+
+	/* configure timer */
+	PIEP_GLOBAL_CFG = GLOBAL_CFG_DEFAULT_INC(1) |
+			  GLOBAL_CFG_CMP_INC(1);
+	PIEP_CMP_STATUS = CMD_STATUS_CMP_HIT(1); /* clear the interrupt */
+        PIEP_CMP_CMP1   = 0x0;
+	PIEP_CMP_CFG |= CMP_CFG_CMP_EN(1);
+        PIEP_GLOBAL_CFG |= GLOBAL_CFG_CNT_ENABLE;
+#endif
+}
+
+
+inline void initSW()
+{
+	unsigned int idx = 0;
+	__R30 = 0;
+	chMask.value = 0;
+	chFullPeriodMask = 0;
+	for(idx = 0; idx < MAX_PWMS; idx++)
+	{
+		chPWM[idx][0] = chPWM[idx][1] = 0;
+		nextCnt[idx] = 0;
+		chToggleIdx[idx] = 0;
+		chToggleDelta[idx] = 0;
+
+	}
+}
+
+inline void updateConfigs()
+{
+	static unsigned char first = 1;
+	unsigned int idx = 0;
+
+	chMask.value = PWM_CMD->enmask;
+
+	for(idx = 0; idx < MAX_PWMS; idx++)
+	{
+		// ch disable then out
+		if(!(chMask.value & (0x1 << idx)))
+		{
+			continue;
+		}
+
+		if(!first) // make sure full period
+		{
+			if(chFullPeriodMask & (0x1 << idx)) // full period then refresh configs
+			{
+				chPWM[idx][0] = PWM_CMD->periodhi[idx][1]; // high
+				chPWM[idx][1] = PWM_CMD->periodhi[idx][0] - PWM_CMD->periodhi[idx][1]; // low
+			}
+		}
+		else
+		{
+			first = 0;
+			chPWM[idx][0] = PWM_CMD->periodhi[idx][1];
+			chPWM[idx][1] = PWM_CMD->periodhi[idx][0] - PWM_CMD->periodhi[idx][1];
+		}
+	}
+
+}
+
+inline void waitForDeltaTime(unsigned int time)
+{
+	unsigned int curr = read_PIEP_COUNT();
+
+	while(TIME_SUB(read_PIEP_COUNT(), curr) < time);
+
+}
+
+/*
+ * main idea:
+ * 	refresh configs: high, low
+ * 	update next toggle time then pick out the min one (meanwhile record channel id)
+ * 	toggle this channel when time is up, then mark this channel when full period to refresh configs
+ */
+void main()
+{
+	unsigned char firstStart = 1;
+	unsigned int deltaMin = 0xFFFFFFFF;
+	unsigned char idx = 0;
+	unsigned char currChToggle = 0xFF;
+	unsigned int currCnt = 0;
+
+	// init pru HW
+	initHW();
+
+	// init SW: variables
+	initSW();
+
+	// main loop
+	while(1)
+	{
+		// new configs arrive: update configs (make sure finish full period)
+		if(PWM_CMD_MAGIC == PWM_CMD->magic)
+		{
+			updateConfigs();
+		}
+
+
+		// make sure channels enabled
+		if(!chMask.value)
+		{
+			continue;
+		}
+
+		// update next toggle absolute time for all channels, update relative time to wait for enable channels
+		if(!firstStart)
+		{
+			currCnt = read_PIEP_COUNT();
+			for(idx = 0; idx < MAX_PWMS; idx++)
+			{
+				nextCnt[idx] += chPWM[idx][(chToggleIdx[idx]++)];
+
+				// channel disable
+				if(!(chMask.value & (0x1 << idx)))
+				{
+					__R30 &= ~(0x1 << idx);
+					continue;
+				}
+
+				// channel enable
+				chToggleDelta[idx] = TIME_SUB(nextCnt[idx], currCnt);
+				if(deltaMin > chToggleDelta[idx])
+				{
+					deltaMin = chToggleDelta[idx];
+					currChToggle = idx;
+				}
+			}
+		}
+		else
+		{
+
+			for(idx = 0; idx < MAX_PWMS; idx++)
+			{
+				// channel disable
+				if(!(chMask.value & (0x1 << idx)))
+				{
+					__R30 &= ~(0x1 << idx);
+					continue;
+				}
+
+				// channel enable
+				firstStart = 0;
+
+				chToggleDelta[idx] = chPWM[idx][(chToggleIdx[idx]++)];
+				if(deltaMin > chToggleDelta[idx])
+				{
+					deltaMin = chToggleDelta[idx];
+					currChToggle = idx;
+				}
+			}
+		}
+
+
+		// wait delta min to toggle
+		waitForDeltaTime(deltaMin);
+		// toggle channel PWM
+		__R30 ^= (0x1 << currChToggle);
+		// record toggle channel when high + low done: full period
+		if(2 == chToggleIdx[currChToggle])
+		{
+			chToggleIdx[currChToggle] = 0;
+			chFullPeriodMask |= (0x1 << currChToggle);
+		}
+		else
+		{
+			chFullPeriodMask &= ~(0x1 << currChToggle);
+		}
+
+	}
+
+}
+
+#endif
