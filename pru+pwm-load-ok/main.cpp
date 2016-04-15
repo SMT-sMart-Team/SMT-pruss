@@ -18,8 +18,9 @@
 volatile register uint32_t __R31;
 #endif
 
+#define SMT_PRU_PWM
 
-#define MOTOR_CH 4
+#define MOTOR_CH 8
 
 unsigned char full_period = 1;
 unsigned char ch_num_period = 0;
@@ -43,6 +44,212 @@ static inline u32 read_PIEP_COUNT(void)
 	return PIEP_COUNT;
 
 }
+
+#ifdef SMT_PRU_PWM
+
+typedef struct
+{
+    u32 time_low;
+    u32 time_high;
+}time64;
+
+typedef struct {
+    u32 chid;
+    u32 enmask;
+    time64 time_of_hi;
+    time64 time_of_lo;
+    time64 period_time;
+} ChanelObj;
+
+inline unsigned int time_greater(time64 x, time64 y)
+{
+    // reverse
+    if(x.time_high > y.time_high)
+    {
+        return 1;
+    }
+    else if(x.time_high < y.time_high)
+    {
+        return 0;
+    }
+    else
+    {
+        if(x.time_low > y.time_low)
+        {
+            return 1;
+        }
+        else
+        {
+            return 0;
+        }
+    }
+
+}
+
+inline time64 time_add(time64 x, time64 y)
+{
+
+    time64 ret;
+    u32 lowSum = x.time_low + y.time_low;
+
+    ret.time_high = x.time_high + y.time_high;
+    ret.time_low = lowSum;
+
+    if((lowSum < x.time_low) || lowSum < y.time_low)
+    {
+        // reverse
+        ret.time_high += 1;
+    }
+
+    return ret;
+
+}
+
+// only handle x > y condition
+inline u32 time_sub(time64 x, time64 y)
+{
+
+    time64 ret;
+
+    if(time_greater(x, y))
+    {
+        if(x.time_high == y.time_high)
+        {
+            ret.time_high = 0;
+            ret.time_low = x.time_low - y.time_low;
+
+        }
+        else
+        {
+            if(x.time_low > y.time_low)
+            {
+                ret.time_high = x.time_high - y.time_high;
+                ret.time_low = x.time_low - y.time_low;
+            }
+            else
+            {
+                ret.time_high = x.time_high - 1 - y.time_high;
+                ret.time_low = 0xFFFFFFFF - y.time_low + x.time_low;
+            }
+        }
+    }
+    return ret.time_low; // we believe that the reverse should be just one time
+
+}
+
+
+
+int main(void) //(int argc, char *argv[])
+{
+
+    ChanelObj chnObj[MAX_PWMS];
+    u32 temp = 0;
+    u32 currTime = 0;
+    u32 prevTime = 0;
+    time64 currTs64;
+    u32 index = 0;
+
+    // init
+	/* enable OCP master port */
+	PRUCFG_SYSCFG &= ~SYSCFG_STANDBY_INIT;
+	PRUCFG_SYSCFG = (PRUCFG_SYSCFG &
+			~(SYSCFG_IDLE_MODE_M | SYSCFG_STANDBY_MODE_M)) |
+			SYSCFG_IDLE_MODE_NO | SYSCFG_STANDBY_MODE_NO;
+
+	/* our PRU wins arbitration */
+	PRUCFG_SPP |=  SPP_PRU1_PAD_HP_EN;
+	pwm_setup();
+
+	/* configure timer */
+	PIEP_GLOBAL_CFG = GLOBAL_CFG_DEFAULT_INC(1) |
+			  GLOBAL_CFG_CMP_INC(1);
+	PIEP_CMP_STATUS = CMD_STATUS_CMP_HIT(1); /* clear the interrupt */
+        PIEP_CMP_CMP1   = 0x0;
+	PIEP_CMP_CFG |= CMP_CFG_CMP_EN(1);
+        PIEP_GLOBAL_CFG |= GLOBAL_CFG_CNT_ENABLE;
+
+
+
+    //u32 sartRiseTime = 0;
+    //u32 startFallTime = 0;
+    for (index = 0; index < MAX_PWMS; index++)
+    {
+        chnObj[index].chid = index + 1;
+        chnObj[index].enmask = 0;
+    }
+
+    while (1)
+    {
+
+        //step 1 : update current time.
+        currTime = read_PIEP_COUNT();
+        if(prevTime > currTime)
+        {
+            // reverse
+            currTs64.time_high++;
+
+        }
+        currTs64.time_low = currTime;
+
+        prevTime = currTime;
+
+        //step 2: judge current if it is arrive at rising edge time
+        for (index = 0; index < MAX_PWMS; index++)
+        {
+            //it is time that arriving rising edge........
+            if(time_greater(currTs64, chnObj[index].time_of_hi))
+            {
+                chnObj[index].enmask = PWM_CMD ->enmask;
+                chnObj[index].period_time.time_low = PWM_CMD ->periodhi[index][0];
+
+
+                // update time stamp
+                chnObj[index].time_of_lo.time_high = 0;
+                chnObj[index].time_of_lo.time_low = PWM_CMD ->periodhi[index][1];
+                chnObj[index].time_of_lo = time_add(chnObj[index].time_of_lo, currTs64);
+                //rising_edge_time = current + period
+                chnObj[index].time_of_hi = time_add(chnObj[index].period_time, currTs64);
+
+                if (chnObj[index].enmask & (1U << index))
+                {
+#ifdef __GNUC__
+                        temp = read_r30(); 
+    				    temp |= 1U<<index;
+                        write_r30(temp);
+#else
+    				    // __R30 |= (msk&(1U<<i));
+                        __R30 |= (1U << index); //pull up
+#endif
+
+                }
+                continue;
+            }
+
+            //it is time that arriving falling edge........
+            if(time_greater(currTs64, chnObj[index].time_of_lo))
+            {
+
+            	chnObj[index].time_of_lo = time_add(chnObj[index].period_time, currTs64);
+
+                if (chnObj[index].enmask & (1U << index))
+                {
+#ifdef __GNUC__
+                        temp = read_r30(); 
+        			    temp &= ~(1U<<index);
+                        write_r30(temp);
+#else
+        			// __R30 &= ~(1U<<i);
+                    __R30 &= ~(1U << index); //pull down
+#endif
+
+                }
+
+            }
+        }
+    }
+}
+
+#else
 
 /*
  * main.c
@@ -285,3 +492,4 @@ int main() {
 	}
 	return 0;
 }
+#endif
