@@ -61,6 +61,20 @@ struct pwm_cmd {
         u32 hilo_read[MAX_PWMS][2];
         u32 enmask_read;
 };
+typedef struct
+{
+    u32 time_low;
+    u32 time_high;
+}time64;
+
+typedef struct {
+    u32 chid;
+    u32 enmask;
+    time64 time_of_hi;
+    time64 time_of_lo;
+    time64 period_time;
+} ChanelObj;
+
 struct pwm_cmd_l{
     u32 enmask;
     u32 offmsk;
