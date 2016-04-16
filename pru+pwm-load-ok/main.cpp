@@ -158,7 +158,7 @@ static inline void initHW()
 	PIEP_CMP_CFG |= CMP_CFG_CMP_EN(1);
         PIEP_GLOBAL_CFG |= GLOBAL_CFG_CNT_ENABLE;
 
-    __R30 = (~BIT(10))&(~BIT(8))&(~BIT(11))&(~BIT(9));
+    __R30 = 0x0; // (~BIT(10))&(~BIT(8))&(~BIT(11))&(~BIT(9));
 }
 
 
@@ -263,16 +263,7 @@ int main(void) //(int argc, char *argv[])
 #ifdef __GNUC__
                         temp = __R30;
     				    temp |= (1U<<index);
-                        if(temp & BIT(8))
-                        {
-    				        temp &= ~BIT(8);
-                        }
-                        else
-                        {
-    				        temp |= BIT(8);
-                        }
                         __R30 = temp;
-                        // __R30 = (~BIT(10) & BIT(8)); // ch2
 #else
     				    // __R30 |= (msk&(1U<<i));
                         __R30 |= (1U << index); //pull up
@@ -293,10 +284,7 @@ int main(void) //(int argc, char *argv[])
 #ifdef __GNUC__
                         temp = __R30; 
     				    temp &= ~(1u << index);
-    				    // temp &= ~BIT(8);
-    				    // temp |= BIT(10) & (~BIT(8));
                         __R30 = temp;
-                        // __R30 = BIT(10); // ch1
 #else
         			// __R30 &= ~(1U<<i);
                     __R30 &= ~(1U << index); //pull down
