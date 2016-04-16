@@ -18,25 +18,8 @@
 volatile register uint32_t __R31;
 #endif
 
-#define SMT_PRU_PWM
 
 #define MOTOR_CH 8
-
-unsigned char full_period = 1;
-unsigned char ch_num_period = 0;
-struct pwm_cmd_l cfg;
-
-static void pwm_setup(void)
-{
-	u8 i;
-
-    // init output
-    __R30 = 0;
-
-	cfg.enmask = 0;
-	for (i = 0; i < MAX_PWMS; i++)
-		cfg.hilo[i][0] = cfg.hilo[i][1] = PRU_us(200);
-}
 
 
 static inline u32 read_PIEP_COUNT(void)
@@ -45,12 +28,11 @@ static inline u32 read_PIEP_COUNT(void)
 
 }
 
-#ifdef SMT_PRU_PWM
 
 typedef struct
 {
-    u32 time_low;
-    u32 time_high;
+    u32 time_p1;
+    u32 time_p2;
 }time64;
 
 typedef struct {
@@ -64,17 +46,17 @@ typedef struct {
 inline unsigned int time_greater(time64 x, time64 y)
 {
     // reverse
-    if(x.time_high > y.time_high)
+    if(x.time_p2 > y.time_p2)
     {
         return 1;
     }
-    else if(x.time_high < y.time_high)
+    else if(x.time_p2 < y.time_p2)
     {
         return 0;
     }
     else
     {
-        if(x.time_low > y.time_low)
+        if(x.time_p1 > y.time_p1)
         {
             return 1;
         }
@@ -90,15 +72,15 @@ inline time64 time_add(time64 x, time64 y)
 {
 
     time64 ret;
-    u32 lowSum = x.time_low + y.time_low;
+    u32 lowSum = x.time_p1 + y.time_p1;
 
-    ret.time_high = x.time_high + y.time_high;
-    ret.time_low = lowSum;
+    ret.time_p2 = x.time_p2 + y.time_p2;
+    ret.time_p1 = lowSum;
 
-    if((lowSum < x.time_low) || lowSum < y.time_low)
+    if((lowSum < x.time_p1) || lowSum < y.time_p1)
     {
         // reverse
-        ret.time_high += 1;
+        ret.time_p2 += 1;
     }
 
     return ret;
@@ -113,42 +95,51 @@ inline u32 time_sub(time64 x, time64 y)
 
     if(time_greater(x, y))
     {
-        if(x.time_high == y.time_high)
+        if(x.time_p2 == y.time_p2)
         {
-            ret.time_high = 0;
-            ret.time_low = x.time_low - y.time_low;
+            ret.time_p2 = 0;
+            ret.time_p1 = x.time_p1 - y.time_p1;
 
         }
         else
         {
-            if(x.time_low > y.time_low)
+            if(x.time_p1 > y.time_p1)
             {
-                ret.time_high = x.time_high - y.time_high;
-                ret.time_low = x.time_low - y.time_low;
+                ret.time_p2 = x.time_p2 - y.time_p2;
+                ret.time_p1 = x.time_p1 - y.time_p1;
             }
             else
             {
-                ret.time_high = x.time_high - 1 - y.time_high;
-                ret.time_low = 0xFFFFFFFF - y.time_low + x.time_low;
+                ret.time_p2 = x.time_p2 - 1 - y.time_p2;
+                ret.time_p1 = 0xFFFFFFFF - y.time_p1 + x.time_p1;
             }
         }
     }
-    return ret.time_low; // we believe that the reverse should be just one time
+    return ret.time_p1; // we believe that the reverse should be just one time
 
 }
 
 
-
-int main(void) //(int argc, char *argv[])
+unsigned int chPWM[MAX_PWMS][2]; // 0: high, 1: low
+inline void updateConfigs()
 {
+    unsigned char ii = 0;
+    if(PWM_CMD->magic == PWM_CMD_MAGIC) 
+    {
+        PWM_CMD->magic = PWM_REPLY_MAGIC;
+        for(ii = 0; ii < MAX_PWMS; ii++)
+        {
+            chPWM[ii][0] = PWM_CMD->periodhi[ii][0];
+            chPWM[ii][1] = PWM_CMD->periodhi[ii][1];
+        }
+    }
+    // while(1);
+    // __R30 = BIT(10)|BIT(8);
+}
 
-    ChanelObj chnObj[MAX_PWMS];
-    u32 temp = 0;
-    u32 currTime = 0;
-    u32 prevTime = 0;
-    time64 currTs64;
-    u32 index = 0;
 
+static inline void initHW()
+{
     // init
 	/* enable OCP master port */
 	PRUCFG_SYSCFG &= ~SYSCFG_STANDBY_INIT;
@@ -158,7 +149,6 @@ int main(void) //(int argc, char *argv[])
 
 	/* our PRU wins arbitration */
 	PRUCFG_SPP |=  SPP_PRU1_PAD_HP_EN;
-	pwm_setup();
 
 	/* configure timer */
 	PIEP_GLOBAL_CFG = GLOBAL_CFG_DEFAULT_INC(1) |
@@ -168,6 +158,24 @@ int main(void) //(int argc, char *argv[])
 	PIEP_CMP_CFG |= CMP_CFG_CMP_EN(1);
         PIEP_GLOBAL_CFG |= GLOBAL_CFG_CNT_ENABLE;
 
+    __R30 = (~BIT(10))&(~BIT(8))&(~BIT(11))&(~BIT(9));
+}
+
+
+static inline void initSW()
+{
+}
+
+int main(void) //(int argc, char *argv[])
+{
+
+    ChanelObj chnObj[MAX_PWMS];
+    u32 temp = 0;
+    u32 currTime = 0;
+    time64 currTs64;
+    u32 index = 0;
+
+    initHW();
 
 
     //u32 sartRiseTime = 0;
@@ -176,46 +184,95 @@ int main(void) //(int argc, char *argv[])
     {
         chnObj[index].chid = index + 1;
         chnObj[index].enmask = 0;
+        chnObj[index].time_of_hi.time_p2 = 0;
+        chnObj[index].time_of_hi.time_p1 = 0;
+        chnObj[index].time_of_lo.time_p2 = 0;
+        chnObj[index].time_of_lo.time_p1 = 0;
+        chnObj[index].period_time.time_p2 = 0;
+        chnObj[index].period_time.time_p1 = 0;
+        // default PWM
+        chPWM[index][0] = PRU_us(2500);
+        chPWM[index][1] = PRU_us(1100);
+        PWM_CMD->periodhi[index][0] = PWM_CMD->periodhi[index][1] = 0; 
     }
+
+    currTs64.time_p2 = 0;
+    currTs64.time_p1 = 0;
+
+    PWM_CMD->magic = 0xFFFFFFFF;
+    PWM_CMD->enmask = 0x0;
 
     while (1)
     {
 
         //step 1 : update current time.
         currTime = read_PIEP_COUNT();
-        if(prevTime > currTime)
+        // count overflow
+        if(PIEP_GLOBAL_STATUS & GLOBAL_STATUS_CNT_OVF) 
         {
+            // clear 
+            PIEP_GLOBAL_STATUS |= GLOBAL_STATUS_CNT_OVF; 
+
             // reverse
-            currTs64.time_high++;
+            currTs64.time_p2++;
 
+#if 0
+                        temp = __R30;
+    				    temp |= (1U<<index);
+                        if(temp & BIT(8))
+                        {
+    				        temp &= ~BIT(8);
+                        }
+                        else
+                        {
+    				        temp |= BIT(8);
+                        }
+                        __R30 = temp;
+#endif
         }
-        currTs64.time_low = currTime;
 
-        prevTime = currTime;
+        currTs64.time_p1 = currTime;
+
+
 
         //step 2: judge current if it is arrive at rising edge time
         for (index = 0; index < MAX_PWMS; index++)
         {
+            chnObj[index].enmask = PWM_CMD->enmask & (1U << index);
+
             //it is time that arriving rising edge........
             if(time_greater(currTs64, chnObj[index].time_of_hi))
             {
-                chnObj[index].enmask = PWM_CMD ->enmask;
-                chnObj[index].period_time.time_low = PWM_CMD ->periodhi[index][0];
+                // update configs if have any
+                updateConfigs();
+
+
+                chnObj[index].period_time.time_p1 = chPWM[index][0]; // PWM_CMD->periodhi[index][0];
 
 
                 // update time stamp
-                chnObj[index].time_of_lo.time_high = 0;
-                chnObj[index].time_of_lo.time_low = PWM_CMD ->periodhi[index][1];
+                chnObj[index].time_of_lo.time_p2 = 0;
+                chnObj[index].time_of_lo.time_p1 = chPWM[index][1]; // PWM_CMD->periodhi[index][1]; // 
                 chnObj[index].time_of_lo = time_add(chnObj[index].time_of_lo, currTs64);
                 //rising_edge_time = current + period
                 chnObj[index].time_of_hi = time_add(chnObj[index].period_time, currTs64);
 
-                if (chnObj[index].enmask & (1U << index))
+
+                if (chnObj[index].enmask)
                 {
 #ifdef __GNUC__
-                        temp = read_r30(); 
-    				    temp |= 1U<<index;
-                        write_r30(temp);
+                        temp = __R30;
+    				    temp |= (1U<<index);
+                        if(temp & BIT(8))
+                        {
+    				        temp &= ~BIT(8);
+                        }
+                        else
+                        {
+    				        temp |= BIT(8);
+                        }
+                        __R30 = temp;
+                        // __R30 = (~BIT(10) & BIT(8)); // ch2
 #else
     				    // __R30 |= (msk&(1U<<i));
                         __R30 |= (1U << index); //pull up
@@ -231,12 +288,15 @@ int main(void) //(int argc, char *argv[])
 
             	chnObj[index].time_of_lo = time_add(chnObj[index].period_time, currTs64);
 
-                if (chnObj[index].enmask & (1U << index))
+                if (chnObj[index].enmask)
                 {
 #ifdef __GNUC__
-                        temp = read_r30(); 
-        			    temp &= ~(1U<<index);
-                        write_r30(temp);
+                        temp = __R30; 
+    				    temp &= ~(1u << index);
+    				    // temp &= ~BIT(8);
+    				    // temp |= BIT(10) & (~BIT(8));
+                        __R30 = temp;
+                        // __R30 = BIT(10); // ch1
 #else
         			// __R30 &= ~(1U<<i);
                     __R30 &= ~(1U << index); //pull down
@@ -249,247 +309,3 @@ int main(void) //(int argc, char *argv[])
     }
 }
 
-#else
-
-/*
- * main.c
- */
-int main() {
-
-       	u8 i;
-	u32 cnt, next;
-	u32 msk, setmsk, clrmsk;
-	u32 delta, deltamin, tnext, hi, lo;
-	u32 *nextp;
-	const u32 *hilop;
-    u32 period;
-	u32 enmask;	/* enable mask */
-	u32 stmask;	/* state mask */
-    u32 temp;
-	static u32 next_hi_lo[MAX_PWMS][3];
-	static struct cxt cxt;
-	/* enable OCP master port */
-	PRUCFG_SYSCFG &= ~SYSCFG_STANDBY_INIT;
-	PRUCFG_SYSCFG = (PRUCFG_SYSCFG &
-			~(SYSCFG_IDLE_MODE_M | SYSCFG_STANDBY_MODE_M)) |
-			SYSCFG_IDLE_MODE_NO | SYSCFG_STANDBY_MODE_NO;
-
-	/* our PRU wins arbitration */
-	PRUCFG_SPP |=  SPP_PRU1_PAD_HP_EN;
-	pwm_setup();
-
-	/* configure timer */
-	PIEP_GLOBAL_CFG = GLOBAL_CFG_DEFAULT_INC(1) |
-			  GLOBAL_CFG_CMP_INC(1);
-	PIEP_CMP_STATUS = CMD_STATUS_CMP_HIT(1); /* clear the interrupt */
-        PIEP_CMP_CMP1   = 0x0;
-	PIEP_CMP_CFG |= CMP_CFG_CMP_EN(1);
-        PIEP_GLOBAL_CFG |= GLOBAL_CFG_CNT_ENABLE;
-
-	/* initialize */
-	cnt = read_PIEP_COUNT();
-
-	enmask = cfg.enmask;
-	stmask = 0;		/* starting all low */
-
-	clrmsk = 0;
-	for (i = 0, msk = 1, nextp = &next_hi_lo[0][0], hilop = &cfg.hilo[0][0];
-			i < MAX_PWMS;
-			i++, msk <<= 1, nextp += 3, hilop += 2) {
-		if ((enmask & msk) == 0) {
-			nextp[1] = PRU_us(100);	/* default */
-			nextp[2] = PRU_us(100);
-			continue;
-		}
-		nextp[0] = cnt;		/* next */
-		nextp[1] = 200000;	/* hi */
-        nextp[2] = 208000;	/* lo */
-        PWM_CMD->periodhi[i][0] = 408000;
-        PWM_CMD->periodhi[i][1] = 180000;        
-	}
-    PWM_CMD->enmask = 0;
-	clrmsk = enmask;
-	setmsk = 0;
-	/* guaranteed to be immediate */
-	deltamin = 0;
-	next = cnt + deltamin;
-    PWM_CMD->magic = PWM_REPLY_MAGIC;
-    
-	while(1) {
-
-
-        if(PWM_CMD->magic == PWM_CMD_MAGIC) 
-        {
-			msk = PWM_CMD->enmask;
-            for(i=0, nextp = &next_hi_lo[0][0]; i<MAX_PWMS; 
-                i++, nextp += 3){
-                //Enable
-                if ((PWM_EN_MASK & (msk&(1U<<i))) && (enmask & (msk&(1U<<i))) == 0) {
-        		        enmask |= (msk&(1U<<i));
-
-#ifdef __GNUC__
-                        temp = read_r30(); 
-    				    temp |= (msk&(1U<<i));
-                        write_r30(temp);
-#else
-    				    __R30 |= (msk&(1U<<i));
-#endif
-
-                        // first enable
-                        if (enmask == (msk&(1U<<i)))
-            			    cnt = read_PIEP_COUNT();
-
-                        nextp[0] = cnt;	//since we start high, wait this amount
-                        deltamin = 0;
-                        next = cnt;
-                }
-                //Disable
-        		if ((PWM_EN_MASK & (msk&(1U<<i))) && ((msk & ~(1U<<i)) == 0)) {
-        			enmask &= ~(1U<<i);
-#ifdef __GNUC__
-                        temp = read_r30(); 
-        			    temp &= ~(1U<<i);
-                        write_r30(temp);
-#else
-        			__R30 &= ~(1U<<i);
-#endif
-        		}
-                
-                //get and set pwm_vals
-                if (PWM_EN_MASK & (msk&(1U<<i))) {
-
-                    // make sure motor channels should be sync
-                    if(i < MOTOR_CH) 
-                    {
-                	    if(full_period)
-                	    {
-
-            		    	//nextp = &next_hi_lo[i * 3];
-                	    	nextp[1] = PWM_CMD->periodhi[i][1];
-                            period = PWM_CMD->periodhi[i][0]; 
-                	    	nextp[2] =period - nextp[1];
-                        }
-                    }
-                    else
-                    {
-                	    nextp[1] = PWM_CMD->periodhi[i][1];
-                        period = PWM_CMD->periodhi[i][0]; 
-                	    nextp[2] =period - nextp[1];
-                    }
-                }
-                PWM_CMD->hilo_read[i][0] = nextp[0];
-                PWM_CMD->hilo_read[i][1] = nextp[1];
-                
-                
-            }
-                    
-			// guaranteed to be immediate 
-			deltamin = 0;
-        
-            PWM_CMD->magic = PWM_REPLY_MAGIC;
-		}
-        PWM_CMD->enmask_read = enmask;
-		/* if nothing is enabled just skip it all */
-		if (enmask == 0)
-			continue;
-
-		setmsk = 0;
-		clrmsk = (u32)-1;
-		deltamin = PRU_ms(100); /* (1U << 31) - 1; */
-		next = cnt + deltamin;
-
-#define SINGLE_PWM(_i) \
-	do { \
-		if (enmask & (1U << (_i))) { \
-			nextp = &next_hi_lo[(_i)][0]; \
-			tnext = nextp[0]; \
-			hi = nextp[1]; \
-			lo = nextp[2]; \
-			/* avoid signed arithmetic */ \
-			while (((delta = (tnext - cnt)) & (1U << 31)) != 0) { \
-				/* toggle the state */ \
-				if (stmask & (1U << (_i))) { \
-					stmask &= ~(1U << (_i)); \
-					clrmsk &= ~(1U << (_i)); \
-					tnext += lo; \
-				    /* flag when all motor channel finish full period */ \
-					ch_num_period++; \
-				    if(!((ch_num_period) %= MOTOR_CH)) \
-					{ \
-					    full_period = 1; \
-				    } \
-				} else { \
-					stmask |= (1U << (_i)); \
-					setmsk |= (1U << (_i)); \
-					tnext += hi; \
-					full_period = 0; \
-				} \
-			} \
-			if (delta <= deltamin) { \
-				deltamin = delta; \
-				next = tnext; \
-			} \
-			nextp[0] = tnext; \
-		} \
-	} while (0)
-
-
-
-#if MAX_PWMS > 0 && (PWM_EN_MASK & BIT(0))
-		SINGLE_PWM(0);
-#endif
-#if MAX_PWMS > 1 && (PWM_EN_MASK & BIT(1))
-		SINGLE_PWM(1);
-#endif
-#if MAX_PWMS > 2 && (PWM_EN_MASK & BIT(2))
-		SINGLE_PWM(2);
-#endif
-#if MAX_PWMS > 3 && (PWM_EN_MASK & BIT(3))
-		SINGLE_PWM(3);
-#endif
-#if MAX_PWMS > 4 && (PWM_EN_MASK & BIT(4))
-		SINGLE_PWM(4);
-#endif
-#if MAX_PWMS > 5 && (PWM_EN_MASK & BIT(5))
-		SINGLE_PWM(5);
-#endif
-#if MAX_PWMS > 6 && (PWM_EN_MASK & BIT(6))
-		SINGLE_PWM(6);
-#endif
-#if MAX_PWMS > 7 && (PWM_EN_MASK & BIT(7))
-		SINGLE_PWM(7);
-#endif
-#if MAX_PWMS > 8 && (PWM_EN_MASK & BIT(8))
-		SINGLE_PWM(8);
-#endif
-#if MAX_PWMS > 9 && (PWM_EN_MASK & BIT(9))
-		SINGLE_PWM(9);
-#endif
-#if MAX_PWMS > 10 && (PWM_EN_MASK & BIT(10))
-		SINGLE_PWM(10);
-#endif
-#if MAX_PWMS > 11 && (PWM_EN_MASK & BIT(11))
-		SINGLE_PWM(11);
-#endif
-#if MAX_PWMS > 12 && (PWM_EN_MASK & BIT(12))
-		SINGLE_PWM(12);
-#endif
-
-		/* results in set bits where there are changes */
-
-#ifdef __GNUC__
-                        temp = read_r30(); 
-                        temp = (temp & (clrmsk & 0xfff)) | (setmsk & 0xfff);
-                        write_r30(temp);
-#else
-      __R30 = (__R30 & (clrmsk & 0xfff)) | (setmsk & 0xfff);
-#endif
-		
-		/* loop while nothing changes */
-		do {
-			cnt = read_PIEP_COUNT();
-		} while (((next - cnt) & (1U << 31)) == 0);
-	}
-	return 0;
-}
-#endif
