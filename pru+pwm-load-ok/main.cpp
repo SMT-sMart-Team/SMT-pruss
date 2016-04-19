@@ -45,8 +45,8 @@ typedef struct {
 #define TIME_ADD(out, in, delta) \
 	do \
 	{ \
-		out.time_p1 = x + y.time_p1; \
-		if((out.time_p1 < x) || out.time_p1 < y.time_p1) \
+		out.time_p1 = in.time_p1 + delta; \
+		if((out.time_p1 < delta) || out.time_p1 < in.time_p1) \
 		{ \
 			out.time_p2 += 1; \
 		} \
@@ -87,7 +87,7 @@ inline u32 time_sub(time64 x, time64 y)
 #endif
 
 
-unsigned int chPWM[MAX_PWMS][2]; // 0: high, 1: low
+unsigned int chPWM[MAX_PWMS][2]; // 0: period, 1: high
 #define GAP 200 // us
 #define UPDATE_CONFIGS() \
 	do \
@@ -222,6 +222,17 @@ int main(void) //(int argc, char *argv[])
                         __R30 |= (1U << index); //pull up
 #endif
 
+                }
+                else // make sure low when disable
+                {
+#ifdef __GNUC__
+                    temp = __R30;
+    				temp &= ~(1u << index);
+                    __R30 = temp;
+#else
+        			// __R30 &= ~(1U<<i);
+                    __R30 &= ~(1U << index); //pull down
+#endif
                 }
                 continue;
             }
