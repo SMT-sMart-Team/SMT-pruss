@@ -242,6 +242,7 @@ int main(void) //(int argc, char *argv[])
             {
 
             	//chnObj[index].time_of_lo = time_add(chPWM[index][0], currTs64);
+            	TIME_ADD(chnObj[index].time_of_lo, currTs64, chPWM[index][0]);
 
             	if(PWM_CMD->enmask & (1U << index))
                 {
