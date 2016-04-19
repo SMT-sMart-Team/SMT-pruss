@@ -36,57 +36,23 @@ typedef struct
 }time64;
 
 typedef struct {
-    u32 chid;
-    u32 enmask;
     time64 time_of_hi;
     time64 time_of_lo;
-    time64 period_time;
 } ChanelObj;
 
-inline unsigned int time_greater(time64 x, time64 y)
-{
-    // reverse
-    if(x.time_p2 > y.time_p2)
-    {
-        return 1;
-    }
-    else if(x.time_p2 < y.time_p2)
-    {
-        return 0;
-    }
-    else
-    {
-        if(x.time_p1 > y.time_p1)
-        {
-            return 1;
-        }
-        else
-        {
-            return 0;
-        }
-    }
+#define TIME_GREATER(x, y) ((x.time_p2 == y.time_p2)?((x.time_p1 >= y.time_p1)? 1 : 0):((x.time_p2 > y.time_p2)? 1 : 0))
 
-}
+#define TIME_ADD(out, in, delta) \
+	do \
+	{ \
+		out.time_p1 = x + y.time_p1; \
+		if((out.time_p1 < x) || out.time_p1 < y.time_p1) \
+		{ \
+			out.time_p2 += 1; \
+		} \
+	} while(0)
 
-inline time64 time_add(time64 x, time64 y)
-{
-
-    time64 ret;
-    u32 lowSum = x.time_p1 + y.time_p1;
-
-    ret.time_p2 = x.time_p2 + y.time_p2;
-    ret.time_p1 = lowSum;
-
-    if((lowSum < x.time_p1) || lowSum < y.time_p1)
-    {
-        // reverse
-        ret.time_p2 += 1;
-    }
-
-    return ret;
-
-}
-
+#if 0
 // only handle x > y condition
 inline u32 time_sub(time64 x, time64 y)
 {
@@ -118,53 +84,52 @@ inline u32 time_sub(time64 x, time64 y)
     return ret.time_p1; // we believe that the reverse should be just one time
 
 }
+#endif
 
 
 unsigned int chPWM[MAX_PWMS][2]; // 0: high, 1: low
-inline void updateConfigs()
-{
-    unsigned char ii = 0;
-    if(PWM_CMD->magic == PWM_CMD_MAGIC) 
-    {
-        PWM_CMD->magic = PWM_REPLY_MAGIC;
-        for(ii = 0; ii < MAX_PWMS; ii++)
-        {
-            chPWM[ii][0] = PWM_CMD->periodhi[ii][0];
-            chPWM[ii][1] = PWM_CMD->periodhi[ii][1];
-        }
-    }
-    // while(1);
-    // __R30 = BIT(10)|BIT(8);
-}
+#define GAP 200 // us
+#define UPDATE_CONFIGS() \
+	do \
+	{	\
+		if(PWM_CMD->magic == PWM_CMD_MAGIC) \
+		{	\
+			PWM_CMD->magic = PWM_REPLY_MAGIC; \
+			for(index = 0; index < MAX_PWMS; index++) \
+			{ \
+				chPWM[index][0] = PWM_CMD->hilo_read[index][0] = PWM_CMD->periodhi[index][0]; \
+				chPWM[index][1] = PWM_CMD->hilo_read[index][1] = PWM_CMD->periodhi[index][1]; \
+				if(chPWM[index][0] <= chPWM[index][1]) /*error configs*/ \
+				{ \
+					chPWM[index][1] = chPWM[index][0] - GAP; \
+				} \
+			} \
+		} \
+	} while(0)
 
 
-static inline void initHW()
-{
-    // init
-	/* enable OCP master port */
-	PRUCFG_SYSCFG &= ~SYSCFG_STANDBY_INIT;
-	PRUCFG_SYSCFG = (PRUCFG_SYSCFG &
-			~(SYSCFG_IDLE_MODE_M | SYSCFG_STANDBY_MODE_M)) |
-			SYSCFG_IDLE_MODE_NO | SYSCFG_STANDBY_MODE_NO;
 
-	/* our PRU wins arbitration */
-	PRUCFG_SPP |=  SPP_PRU1_PAD_HP_EN;
-
-	/* configure timer */
-	PIEP_GLOBAL_CFG = GLOBAL_CFG_DEFAULT_INC(1) |
-			  GLOBAL_CFG_CMP_INC(1);
-	PIEP_CMP_STATUS = CMD_STATUS_CMP_HIT(1); /* clear the interrupt */
-        PIEP_CMP_CMP1   = 0x0;
-	PIEP_CMP_CFG |= CMP_CFG_CMP_EN(1);
-        PIEP_GLOBAL_CFG |= GLOBAL_CFG_CNT_ENABLE;
-
-    __R30 = 0x0; // (~BIT(10))&(~BIT(8))&(~BIT(11))&(~BIT(9));
-}
+#define INIT_HW() \
+	do \
+	{ \
+	/* enable OCP master port */ \
+	PRUCFG_SYSCFG &= ~SYSCFG_STANDBY_INIT; \
+	PRUCFG_SYSCFG = (PRUCFG_SYSCFG & \
+			~(SYSCFG_IDLE_MODE_M | SYSCFG_STANDBY_MODE_M)) | \
+			SYSCFG_IDLE_MODE_NO | SYSCFG_STANDBY_MODE_NO; \
+	/* our PRU wins arbitration */ \
+	PRUCFG_SPP |=  SPP_PRU1_PAD_HP_EN; \
+	/* configure timer */ \
+	PIEP_GLOBAL_CFG = GLOBAL_CFG_DEFAULT_INC(1) | \
+			  GLOBAL_CFG_CMP_INC(1); \
+	PIEP_CMP_STATUS = CMD_STATUS_CMP_HIT(1); /* clear the interrupt */ \
+    PIEP_CMP_CMP1   = 0x0; \
+	PIEP_CMP_CFG |= CMP_CFG_CMP_EN(1); \
+    PIEP_GLOBAL_CFG |= GLOBAL_CFG_CNT_ENABLE; \
+    __R30 = 0x0; /* (~BIT(10))&(~BIT(8))&(~BIT(11))&(~BIT(9)); */ \
+	} while(0)
 
 
-static inline void initSW()
-{
-}
 
 int main(void) //(int argc, char *argv[])
 {
@@ -175,25 +140,21 @@ int main(void) //(int argc, char *argv[])
     time64 currTs64;
     u32 index = 0;
 
-    initHW();
+    INIT_HW();
 
 
     //u32 sartRiseTime = 0;
     //u32 startFallTime = 0;
     for (index = 0; index < MAX_PWMS; index++)
     {
-        chnObj[index].chid = index + 1;
-        chnObj[index].enmask = 0;
         chnObj[index].time_of_hi.time_p2 = 0;
         chnObj[index].time_of_hi.time_p1 = 0;
         chnObj[index].time_of_lo.time_p2 = 0;
         chnObj[index].time_of_lo.time_p1 = 0;
-        chnObj[index].period_time.time_p2 = 0;
-        chnObj[index].period_time.time_p1 = 0;
         // default PWM
-        chPWM[index][0] = PRU_us(2500);
+        chPWM[index][0] = PRU_ms(20); // 50Hz
         chPWM[index][1] = PRU_us(1100);
-        PWM_CMD->periodhi[index][0] = PWM_CMD->periodhi[index][1] = 0; 
+        PWM_CMD->hilo_read[index][0] = PWM_CMD->hilo_read[index][1] = PWM_CMD->periodhi[index][0] = PWM_CMD->periodhi[index][1] = 0;
     }
 
     currTs64.time_p2 = 0;
@@ -233,32 +194,24 @@ int main(void) //(int argc, char *argv[])
 
         currTs64.time_p1 = currTime;
 
-
-
         //step 2: judge current if it is arrive at rising edge time
         for (index = 0; index < MAX_PWMS; index++)
         {
-            chnObj[index].enmask = PWM_CMD->enmask & (1U << index);
-
             //it is time that arriving rising edge........
-            if(time_greater(currTs64, chnObj[index].time_of_hi))
+            if(TIME_GREATER(currTs64, chnObj[index].time_of_hi))
             {
                 // update configs if have any
-                updateConfigs();
-
-
-                chnObj[index].period_time.time_p1 = chPWM[index][0]; // PWM_CMD->periodhi[index][0];
-
+            	UPDATE_CONFIGS();
 
                 // update time stamp
-                chnObj[index].time_of_lo.time_p2 = 0;
-                chnObj[index].time_of_lo.time_p1 = chPWM[index][1]; // PWM_CMD->periodhi[index][1]; // 
-                chnObj[index].time_of_lo = time_add(chnObj[index].time_of_lo, currTs64);
+                //chnObj[index].time_of_lo.time_p2 = 0;
+                //chnObj[index].time_of_lo.time_p1 = chPWM[index][1]; // PWM_CMD->periodhi[index][1]; //
+                TIME_ADD(chnObj[index].time_of_lo, currTs64, chPWM[index][1]);
                 //rising_edge_time = current + period
-                chnObj[index].time_of_hi = time_add(chnObj[index].period_time, currTs64);
+                TIME_ADD(chnObj[index].time_of_hi, currTs64, chPWM[index][0]);
 
 
-                if (chnObj[index].enmask)
+                if(PWM_CMD->enmask & (1U << index))
                 {
 #ifdef __GNUC__
                         temp = __R30;
@@ -274,12 +227,12 @@ int main(void) //(int argc, char *argv[])
             }
 
             //it is time that arriving falling edge........
-            if(time_greater(currTs64, chnObj[index].time_of_lo))
+            if(TIME_GREATER(currTs64, chnObj[index].time_of_lo))
             {
 
-            	chnObj[index].time_of_lo = time_add(chnObj[index].period_time, currTs64);
+            	//chnObj[index].time_of_lo = time_add(chPWM[index][0], currTs64);
 
-                if (chnObj[index].enmask)
+            	if(PWM_CMD->enmask & (1U << index))
                 {
 #ifdef __GNUC__
                         temp = __R30; 
@@ -289,7 +242,6 @@ int main(void) //(int argc, char *argv[])
         			// __R30 &= ~(1U<<i);
                     __R30 &= ~(1U << index); //pull down
 #endif
-
                 }
 
             }
