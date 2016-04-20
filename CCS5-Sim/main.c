@@ -224,7 +224,6 @@ void update_flag()
                 deltaFreq += 20;
         	}
         }
-
         break;
     case Disable_all:
         PWM_CMD ->enmask = 0x0;
@@ -240,21 +239,31 @@ void update_flag()
 #define TIME_SUB(x, y) ((x > y)? (x - y): (0xFFFFFFFF - y + x))
 time64 ts[MAX_PWMS][2];
 
+#define TIME_GREATER(x, y) ((x.time_p2 == y.time_p2)?((x.time_p1 >= y.time_p1)? 1 : 0):((x.time_p2 > y.time_p2)? 1 : 0))
 
+#define TIME_ADD(out, in, delta) \
+	do \
+	{ \
+		out.time_p1 = in.time_p1 + delta; \
+		if((out.time_p1 < delta) || out.time_p1 < in.time_p1) \
+		{ \
+			out.time_p2 += 1; \
+		} \
+	} while(0)
 inline unsigned int time_greater(time64 x, time64 y)
 {
     // reverse
-    if(x.time_high > y.time_high)
+    if(x.time_p2 > y.time_p2)
     {
         return 1;
     }
-    else if(x.time_high < y.time_high)
+    else if(x.time_p2 < y.time_p2)
     {
         return 0;
     }
     else
     {
-        if(x.time_low > y.time_low)
+        if(x.time_p1 > y.time_p1)
         {
             return 1;
         }
@@ -270,15 +279,15 @@ inline time64 time_add(time64 x, time64 y)
 {
 
     time64 ret;
-    u32 lowSum = x.time_low + y.time_low;
+    u32 lowSum = x.time_p1 + y.time_p1;
 
-    ret.time_high = x.time_high + y.time_high;
-    ret.time_low = lowSum;
+    ret.time_p2 = x.time_p2 + y.time_p2;
+    ret.time_p1 = lowSum;
 
-    if((lowSum < x.time_low) || lowSum < y.time_low)
+    if((lowSum < x.time_p1) || lowSum < y.time_p1)
     {
         // reverse
-        ret.time_high += 1;
+        ret.time_p2 += 1;
     }
 
     return ret;
@@ -293,27 +302,27 @@ inline u32 time_sub(time64 x, time64 y)
 
     if(time_greater(x, y))
     {
-        if(x.time_high == y.time_high)
+        if(x.time_p2 == y.time_p2)
         {
-            ret.time_high = 0;
-            ret.time_low = x.time_low - y.time_low;
+            ret.time_p2 = 0;
+            ret.time_p1 = x.time_p1 - y.time_p1;
 
         }
         else
         {
-            if(x.time_low > y.time_low)
+            if(x.time_p1 > y.time_p1)
             {
-                ret.time_high = x.time_high - y.time_high;
-                ret.time_low = x.time_low - y.time_low;
+                ret.time_p2 = x.time_p2 - y.time_p2;
+                ret.time_p1 = x.time_p1 - y.time_p1;
             }
             else
             {
-                ret.time_high = x.time_high - 1 - y.time_high;
-                ret.time_low = 0xFFFFFFFF - y.time_low + x.time_low;
+                ret.time_p2 = x.time_p2 - 1 - y.time_p2;
+                ret.time_p1 = 0xFFFFFFFF - y.time_p1 + x.time_p1;
             }
         }
     }
-    return ret.time_low; // we believe that the reverse should be just one time
+    return ret.time_p1; // we believe that the reverse should be just one time
 
 }
 
@@ -361,10 +370,10 @@ int main(void) //(int argc, char *argv[])
         if(prevTime > currTime)
         {
             // reverse
-            currTs64.time_high++;
+            currTs64.time_p2++;
 
         }
-        currTs64.time_low = currTime;
+        currTs64.time_p1 = currTime;
 
         prevTime = currTime;
 
@@ -375,18 +384,21 @@ int main(void) //(int argc, char *argv[])
         for (index = 0; index < MAX_PWMS; index++)
         {
             //it is time that arriving rising edge........
-            if(time_greater(currTs64, chnObj[index].time_of_hi))
+            if(TIME_GREATER(currTs64, chnObj[index].time_of_hi))
             {
                 chnObj[index].enmask = PWM_CMD ->enmask;
-                chnObj[index].period_time.time_low = PWM_CMD ->periodhi[index][0];
+                chnObj[index].period_time.time_p1 = PWM_CMD ->periodhi[index][0];
 
 
                 // update time stamp
-                chnObj[index].time_of_lo.time_high = 0;
-                chnObj[index].time_of_lo.time_low = PWM_CMD ->periodhi[index][1];
-                chnObj[index].time_of_lo = time_add(chnObj[index].time_of_lo, currTs64);
+                //chnObj[index].time_of_lo.time_p2 = 0;
+                //chnObj[index].time_of_lo.time_p1 = PWM_CMD ->periodhi[index][1];
+
+                // chnObj[index].time_of_lo = time_add(chnObj[index].time_of_lo, currTs64);
+                TIME_ADD(chnObj[index].time_of_lo, currTs64, PWM_CMD ->periodhi[index][1]);
                 //rising_edge_time = current + period
-                chnObj[index].time_of_hi = time_add(chnObj[index].period_time, currTs64);
+                // chnObj[index].time_of_hi = time_add(chnObj[index].period_time, currTs64);
+                TIME_ADD(chnObj[index].time_of_hi, currTs64, PWM_CMD ->periodhi[index][0]);
 
                 if (chnObj[index].enmask & (1U << index))
                 {
@@ -397,9 +409,9 @@ int main(void) //(int argc, char *argv[])
                     __R30 |= (1U << index); //pull up
 
                     printf("<high> chn: %d cur [%08x-%08x]  r30 %x  hi [%08x-%08x]  lo [%08x-%08x]  perid %d(high: %d) \n" ,chnObj[index].chid,
-                            currTs64.time_high, currTs64.time_low, __R30,
-                            chnObj[index].time_of_hi.time_high, chnObj[index].time_of_hi.time_low,
-                            chnObj[index].time_of_lo.time_high, chnObj[index].time_of_lo.time_low,
+                            currTs64.time_p2, currTs64.time_p1, __R30,
+                            chnObj[index].time_of_hi.time_p2, chnObj[index].time_of_hi.time_p1,
+                            chnObj[index].time_of_lo.time_p2, chnObj[index].time_of_lo.time_p1,
                             time_sub(currTs64, ts[index][0]), PWM_CMD ->periodhi[index][1]);
                     ts[index][0] = currTs64;
 
@@ -410,10 +422,10 @@ int main(void) //(int argc, char *argv[])
             }
 
             //it is time that arriving falling edge........
-            if(time_greater(currTs64, chnObj[index].time_of_lo))
+            if(TIME_GREATER(currTs64, chnObj[index].time_of_lo))
             {
 
-            	chnObj[index].time_of_lo = time_add(chnObj[index].period_time, currTs64);
+            	TIME_ADD(chnObj[index].time_of_lo, currTs64, PWM_CMD ->periodhi[index][0]);
 
                 if (chnObj[index].enmask & (1U << index))
                 {
@@ -421,9 +433,9 @@ int main(void) //(int argc, char *argv[])
 
 
                     printf("<low> chn: %d cur [%08x-%08x]  r30 %x  hi [%08x-%08x]  lo [%08x-%08x]  high-len %d \n" ,chnObj[index].chid,
-                            currTs64.time_high, currTs64.time_low, __R30,
-                            chnObj[index].time_of_hi.time_high, chnObj[index].time_of_hi.time_low,
-                            chnObj[index].time_of_lo.time_high, chnObj[index].time_of_lo.time_low,
+                            currTs64.time_p2, currTs64.time_p1, __R30,
+                            chnObj[index].time_of_hi.time_p2, chnObj[index].time_of_hi.time_p1,
+                            chnObj[index].time_of_lo.time_p2, chnObj[index].time_of_lo.time_p1,
                             time_sub(currTs64, ts[index][0]));
                     ts[index][1] = currTs64;
                 }
