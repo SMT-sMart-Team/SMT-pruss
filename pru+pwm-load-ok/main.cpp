@@ -45,6 +45,7 @@ typedef struct {
 #define TIME_ADD(out, in, delta) \
 	do \
 	{ \
+		out.time_p2 = in.time_p2; \
 		out.time_p1 = in.time_p1 + delta; \
 		if((out.time_p1 < delta) || out.time_p1 < in.time_p1) \
 		{ \
@@ -95,13 +96,14 @@ unsigned int chPWM[MAX_PWMS][2]; // 0: period, 1: high
 		if(PWM_CMD->magic == PWM_CMD_MAGIC) \
 		{	\
 			PWM_CMD->magic = PWM_REPLY_MAGIC; \
-			for(index = 0; index < MAX_PWMS; index++) \
+            enmask = PWM_CMD->enmask; \
+			for(ii = 0; ii < MAX_PWMS; ii++) \
 			{ \
-				chPWM[index][0] = PWM_CMD->hilo_read[index][0] = PWM_CMD->periodhi[index][0]; \
-				chPWM[index][1] = PWM_CMD->hilo_read[index][1] = PWM_CMD->periodhi[index][1]; \
-				if(chPWM[index][0] <= chPWM[index][1]) /*error configs*/ \
+				chPWM[ii ][0] = PWM_CMD->hilo_read[ii][0] = PWM_CMD->periodhi[ii][0]; \
+				chPWM[ii][1] = PWM_CMD->hilo_read[ii][1] = PWM_CMD->periodhi[ii][1]; \
+				if(chPWM[ii][0] <= chPWM[ii][1]) /*error configs*/ \
 				{ \
-					chPWM[index][1] = chPWM[index][0] - GAP; \
+					chPWM[ii][1] = chPWM[ii][0] - GAP; \
 				} \
 			} \
 		} \
@@ -139,6 +141,8 @@ int main(void) //(int argc, char *argv[])
     u32 currTime = 0;
     time64 currTs64;
     u32 index = 0;
+    u32 ii = 0;
+    u32 enmask = 0;
 
     INIT_HW();
 
@@ -152,7 +156,7 @@ int main(void) //(int argc, char *argv[])
         chnObj[index].time_of_lo.time_p2 = 0;
         chnObj[index].time_of_lo.time_p1 = 0;
         // default PWM
-        chPWM[index][0] = PRU_ms(20); // 50Hz
+        chPWM[index][0] = PRU_us(2500); // 50Hz
         chPWM[index][1] = PRU_us(1100);
         PWM_CMD->hilo_read[index][0] = PWM_CMD->hilo_read[index][1] = PWM_CMD->periodhi[index][0] = PWM_CMD->periodhi[index][1] = 0;
     }
@@ -197,8 +201,27 @@ int main(void) //(int argc, char *argv[])
         //step 2: judge current if it is arrive at rising edge time
         for (index = 0; index < MAX_PWMS; index++)
         {
-            //it is time that arriving rising edge........
-            if(TIME_GREATER(currTs64, chnObj[index].time_of_hi))
+            //it is time that arriving falling edge........
+            if(TIME_GREATER(currTs64, chnObj[index].time_of_lo))
+            {
+
+            	//chnObj[index].time_of_lo = time_add(chPWM[index][0], currTs64);
+            	TIME_ADD(chnObj[index].time_of_lo, currTs64, chPWM[index][0]);
+
+            	if(enmask & (1U << index))
+                {
+#ifdef __GNUC__
+                        temp = __R30; 
+    				    temp &= ~(1u << index);
+                        __R30 = temp;
+#else
+        			// __R30 &= ~(1U<<i);
+                    __R30 &= ~(1U << index); //pull down
+#endif
+                }
+
+            }
+            else if(TIME_GREATER(currTs64, chnObj[index].time_of_hi))
             {
                 // update configs if have any
             	UPDATE_CONFIGS();
@@ -206,12 +229,13 @@ int main(void) //(int argc, char *argv[])
                 // update time stamp
                 //chnObj[index].time_of_lo.time_p2 = 0;
                 //chnObj[index].time_of_lo.time_p1 = chPWM[index][1]; // PWM_CMD->periodhi[index][1]; //
+                // falling_edge_time = current + high_len
                 TIME_ADD(chnObj[index].time_of_lo, currTs64, chPWM[index][1]);
                 //rising_edge_time = current + period
                 TIME_ADD(chnObj[index].time_of_hi, currTs64, chPWM[index][0]);
 
 
-                if(PWM_CMD->enmask & (1U << index))
+            	if(enmask & (1U << index))
                 {
 #ifdef __GNUC__
                         temp = __R30;
@@ -237,26 +261,6 @@ int main(void) //(int argc, char *argv[])
                 continue;
             }
 
-            //it is time that arriving falling edge........
-            if(TIME_GREATER(currTs64, chnObj[index].time_of_lo))
-            {
-
-            	//chnObj[index].time_of_lo = time_add(chPWM[index][0], currTs64);
-            	TIME_ADD(chnObj[index].time_of_lo, currTs64, chPWM[index][0]);
-
-            	if(PWM_CMD->enmask & (1U << index))
-                {
-#ifdef __GNUC__
-                        temp = __R30; 
-    				    temp &= ~(1u << index);
-                        __R30 = temp;
-#else
-        			// __R30 &= ~(1U<<i);
-                    __R30 &= ~(1U << index); //pull down
-#endif
-                }
-
-            }
         }
     }
 }
