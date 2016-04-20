@@ -140,8 +140,8 @@ int main(void) //(int argc, char *argv[])
     u32 temp = 0;
     u32 currTime = 0;
     time64 currTs64;
-    u32 index = 0;
-    u32 ii = 0;
+    u8 index = 0;
+    u8 ii = 0;
     u32 enmask = 0;
 
     INIT_HW();
@@ -201,27 +201,7 @@ int main(void) //(int argc, char *argv[])
         //step 2: judge current if it is arrive at rising edge time
         for (index = 0; index < MAX_PWMS; index++)
         {
-            //it is time that arriving falling edge........
-            if(TIME_GREATER(currTs64, chnObj[index].time_of_lo))
-            {
-
-            	//chnObj[index].time_of_lo = time_add(chPWM[index][0], currTs64);
-            	TIME_ADD(chnObj[index].time_of_lo, currTs64, chPWM[index][0]);
-
-            	if(enmask & (1U << index))
-                {
-#ifdef __GNUC__
-                        temp = __R30; 
-    				    temp &= ~(1u << index);
-                        __R30 = temp;
-#else
-        			// __R30 &= ~(1U<<i);
-                    __R30 &= ~(1U << index); //pull down
-#endif
-                }
-
-            }
-            else if(TIME_GREATER(currTs64, chnObj[index].time_of_hi))
+            if(TIME_GREATER(currTs64, chnObj[index].time_of_hi))
             {
                 // update configs if have any
             	UPDATE_CONFIGS();
@@ -259,6 +239,26 @@ int main(void) //(int argc, char *argv[])
 #endif
                 }
                 continue;
+            }
+            //it is time that arriving falling edge........
+            if(TIME_GREATER(currTs64, chnObj[index].time_of_lo))
+            {
+
+            	//chnObj[index].time_of_lo = time_add(chPWM[index][0], currTs64);
+            	TIME_ADD(chnObj[index].time_of_lo, currTs64, chPWM[index][0]);
+
+            	if(enmask & (1U << index))
+                {
+#ifdef __GNUC__
+                        temp = __R30; 
+    				    temp &= ~(1u << index);
+                        __R30 = temp;
+#else
+        			// __R30 &= ~(1U<<i);
+                    __R30 &= ~(1U << index); //pull down
+#endif
+                }
+
             }
 
         }
