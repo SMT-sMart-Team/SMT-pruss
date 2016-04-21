@@ -21,6 +21,7 @@ volatile register uint32_t __R31;
 
 #define MOTOR_CH 8
 
+#define TIME_OUT_MAX 3
 
 static inline u32 read_PIEP_COUNT(void)
 {
@@ -170,6 +171,8 @@ int main(void) //(int argc, char *argv[])
 
     PWM_CMD->magic = 0xFFFFFFFF;
     PWM_CMD->enmask = 0x0;
+    PWM_CMD->keep_alive = 0xFFFF;
+    PWM_CMD->time_out = 0x1; // default should be 1 second
 
     // wait for host start 
     while(PWM_CMD_KEEP_ALIVE != PWM_CMD->keep_alive);
@@ -230,9 +233,13 @@ int main(void) //(int argc, char *argv[])
             }
             else 
             {
-                // host is dead, so sth very bad has happened, make sure no PWM out when this time and exit pru
-                __R30 = 0;
-                break;
+                temp++;
+                if(temp > TIME_OUT_MAX)
+                {
+                    // host is dead, so sth very bad has happened, make sure no PWM out when this time and exit pru
+                    __R30 = 0;
+                    break;
+                }
             }
         }
 
