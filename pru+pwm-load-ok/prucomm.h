@@ -42,13 +42,18 @@ struct pwm_multi_config {
 #define PWM_CMD_CLR	5	/* clr a pwm output explicitly */ 
 #define PWM_CMD_TEST	6	/* various crap */
 
+#define PWM_CMD_KEEP_ALIVE 0xbeef
+#define PWM_REPLY_KEEP_ALIVE 0x2152 // ~0xdead
+
 struct pwm_cmd {
         u32 magic;
-	u32 enmask;	/* enable mask */
-	u32 offmsk;	/* state when pwm is off */
+	u16 enmask;	/* enable mask */
+	// u32 offmsk;	/* state when pwm is off */
 	u32 periodhi[MAX_PWMS][2];
         u32 hilo_read[MAX_PWMS][2];
-        u32 enmask_read;
+        // u32 enmask_read;
+        u16 keep_alive; // flag, add By Roger
+        u16 time_out; // second, add By Roger
 };
 struct pwm_cmd_l{
     u32 enmask;

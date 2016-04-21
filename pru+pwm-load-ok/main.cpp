@@ -137,12 +137,13 @@ int main(void) //(int argc, char *argv[])
 {
 
     ChanelObj chnObj[MAX_PWMS];
-    u32 temp = 0;
-    u32 currTime = 0;
+    u16 temp = 0;
+    // u32 currTime = 0;
     time64 currTs64;
     u8 index = 0;
     u8 ii = 0;
-    u32 enmask = 0;
+    u16 enmask = 0;
+    time64 keepAliveTs64;
 
     INIT_HW();
 
@@ -164,14 +165,35 @@ int main(void) //(int argc, char *argv[])
     currTs64.time_p2 = 0;
     currTs64.time_p1 = 0;
 
+    keepAliveTs64.time_p2 = 0;
+    keepAliveTs64.time_p1 = 0;
+
     PWM_CMD->magic = 0xFFFFFFFF;
     PWM_CMD->enmask = 0x0;
+
+    // wait for host start 
+    while(PWM_CMD_KEEP_ALIVE == PWM_CMD->keep_alive);
+    PWM_CMD->keep_alive = PWM_REPLY_KEEP_ALIVE;
+
+    // record time stamp
+    currTs64.time_p1 = read_PIEP_COUNT();
+    if(PIEP_GLOBAL_STATUS & GLOBAL_STATUS_CNT_OVF) 
+    {
+        // clear 
+        PIEP_GLOBAL_STATUS |= GLOBAL_STATUS_CNT_OVF; 
+
+        // reverse
+        currTs64.time_p2++;
+
+    }
+    // update next keep alive ts
+    TIME_ADD(keepAliveTs64, currTs64, PRU_sec(PWM_CMD->time_out));
 
     while (1)
     {
 
         //step 1 : update current time.
-        currTime = read_PIEP_COUNT();
+        currTs64.time_p1 = read_PIEP_COUNT();
         // count overflow
         if(PIEP_GLOBAL_STATUS & GLOBAL_STATUS_CNT_OVF) 
         {
@@ -196,7 +218,24 @@ int main(void) //(int argc, char *argv[])
 #endif
         }
 
-        currTs64.time_p1 = currTime;
+        // make sure host is alive when time is up to check
+        if(TIME_GREATER(currTs64, keepAliveTs64))
+        {
+            // alive 
+            if(PWM_CMD_KEEP_ALIVE == PWM_CMD->keep_alive)
+            {
+                PWM_CMD->keep_alive = PWM_REPLY_KEEP_ALIVE;
+                // update next keep alive ts
+                TIME_ADD(keepAliveTs64, currTs64, PRU_sec(PWM_CMD->time_out));
+            }
+            else 
+            {
+                // host is dead, so sth very bad has happened, make sure no PWM out when this time and exit pru
+                __R30 = 0;
+                break;
+            }
+        }
+
 
         //step 2: judge current if it is arrive at rising edge time
         for (index = 0; index < MAX_PWMS; index++)
