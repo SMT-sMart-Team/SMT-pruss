@@ -172,7 +172,7 @@ int main(void) //(int argc, char *argv[])
     PWM_CMD->enmask = 0x0;
 
     // wait for host start 
-    while(PWM_CMD_KEEP_ALIVE == PWM_CMD->keep_alive);
+    while(PWM_CMD_KEEP_ALIVE != PWM_CMD->keep_alive);
     PWM_CMD->keep_alive = PWM_REPLY_KEEP_ALIVE;
 
     // record time stamp
