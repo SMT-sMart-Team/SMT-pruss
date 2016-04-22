@@ -234,12 +234,14 @@ int main(void) //(int argc, char *argv[])
             if(PWM_CMD_KEEP_ALIVE == PWM_CMD->keep_alive)
             {
                 PWM_CMD->keep_alive = PWM_REPLY_KEEP_ALIVE;
+                time_out = 0;
             }
             else 
             {
                 time_out++;
                 if(time_out > PWM_CMD->time_out)
                 {
+                    // PWM_CMD->hilo_read[11][1] = PRU_us(777); // for debug
                     // host is dead, so sth very bad has happened, make sure no PWM out when this time and exit pru
                     __R30 = 0;
                     break;
