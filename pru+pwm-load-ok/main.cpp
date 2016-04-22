@@ -21,8 +21,9 @@ volatile register uint32_t __R31;
 
 #define MOTOR_CH 8
 
-#define TIME_OUT_DEFAULT 50 // default should be 1 second: 50*20ms
-#define HOST_CMD_PERIOD 20 // 20ms
+#define CHECK_PERIOD_MS 500 // 500ms 
+#define TIME_OUT_DEFAULT 20 // 20*500ms = 10s
+
 
 static inline u32 read_PIEP_COUNT(void)
 {
@@ -101,6 +102,10 @@ unsigned int chPWM[MAX_PWMS][2]; // 0: period, 1: high
             enmask = PWM_CMD->enmask; \
 			for(ii = 0; ii < MAX_PWMS; ii++) \
 			{ \
+                if(11 == ii | 9 == ii) \
+                { \
+                    continue; \
+                } \
 				chPWM[ii ][0] = PWM_CMD->hilo_read[ii][0] = PWM_CMD->periodhi[ii][0]; \
 				chPWM[ii][1] = PWM_CMD->hilo_read[ii][1] = PWM_CMD->periodhi[ii][1]; \
 				if(chPWM[ii][0] <= chPWM[ii][1]) /*error configs*/ \
@@ -140,11 +145,11 @@ int main(void) //(int argc, char *argv[])
 
     ChanelObj chnObj[MAX_PWMS];
     u16 temp = 0;
+    u16 time_out = 0;
     // u32 currTime = 0;
     time64 currTs64;
     u8 index = 0;
     u8 ii = 0;
-    u8 time_out = 0;
     u16 enmask = 0;
     time64 keepAliveTs64;
 
@@ -173,14 +178,12 @@ int main(void) //(int argc, char *argv[])
 
     PWM_CMD->magic = 0xFFFFFFFF;
     PWM_CMD->enmask = 0x0;
-    PWM_CMD->keep_alive_cmd = 0xFFFF;
-    PWM_CMD->keep_alive_reply = 0xFFFF;
-    PWM_CMD->time_out = TIME_OUT_DEFAULT; 
+    PWM_CMD->keep_alive = 0xFFFF;
+    PWM_CMD->time_out = TIME_OUT_DEFAULT; // default should be 1 second
 
     // wait for host start 
-    while(PWM_CMD_KEEP_ALIVE != PWM_CMD->keep_alive_cmd);
-    PWM_CMD->keep_alive_cmd = 0xFFFF;
-    PWM_CMD->keep_alive_reply = PWM_REPLY_KEEP_ALIVE;
+    while(PWM_CMD_KEEP_ALIVE != PWM_CMD->keep_alive);
+    PWM_CMD->keep_alive = PWM_REPLY_KEEP_ALIVE;
 
     // record time stamp
     currTs64.time_p1 = read_PIEP_COUNT();
@@ -194,8 +197,7 @@ int main(void) //(int argc, char *argv[])
 
     }
     // update next keep alive ts
-    // TIME_ADD(keepAliveTs64, currTs64, PRU_ms(PWM_CMD->time_out*HOST_CMD_PERIOD));
-    TIME_ADD(keepAliveTs64, currTs64, PRU_ms(HOST_CMD_PERIOD));
+    TIME_ADD(keepAliveTs64, currTs64, PRU_ms(CHECK_PERIOD_MS));
 
     while (1)
     {
@@ -229,30 +231,28 @@ int main(void) //(int argc, char *argv[])
         // make sure host is alive when time is up to check
         if(TIME_GREATER(currTs64, keepAliveTs64))
         {
+            // update next keep alive ts
+            TIME_ADD(keepAliveTs64, currTs64, PRU_ms(CHECK_PERIOD_MS));
+
             // alive 
-            if(PWM_CMD_KEEP_ALIVE == PWM_CMD->keep_alive_cmd)
+            if(PWM_CMD_KEEP_ALIVE == PWM_CMD->keep_alive)
             {
-                PWM_CMD->keep_alive_cmd = 0xFFFF;
-                // update next keep alive ts
-                TIME_ADD(keepAliveTs64, currTs64, PRU_ms(HOST_CMD_PERIOD));
-                // TIME_ADD(keepAliveTs64, currTs64, PRU_sec(PWM_CMD->time_out));
+                PWM_CMD->keep_alive = PWM_REPLY_KEEP_ALIVE;
+                PWM_CMD->hilo_read[11][1] = PRU_us(9876);
             }
             else 
             {
                 time_out++;
+                PWM_CMD->hilo_read[11][1] = PRU_us(5432);
                 if(time_out > PWM_CMD->time_out)
                 {
                     // host is dead, so sth very bad has happened, make sure no PWM out when this time and exit pru
                     __R30 = 0;
+                    PWM_CMD->hilo_read[9][1] = PRU_us(777);
                     break;
                 }
             }
-            // make sure write ok
-            PWM_CMD->keep_alive_reply = PWM_REPLY_KEEP_ALIVE;
-            PWM_CMD->keep_alive_reply = PWM_REPLY_KEEP_ALIVE;
-            PWM_CMD->keep_alive_reply = PWM_REPLY_KEEP_ALIVE;
         }
-
 
         //step 2: judge current if it is arrive at rising edge time
         for (index = 0; index < MAX_PWMS; index++)
