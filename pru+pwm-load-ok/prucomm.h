@@ -52,8 +52,7 @@ struct pwm_cmd {
 	u32 periodhi[MAX_PWMS][2];
         u32 hilo_read[MAX_PWMS][2];
         // u32 enmask_read;
-        u16 keep_alive_cmd; // flag, add By Roger
-        u16 keep_alive_reply; // flag, add By Roger
+        u16 keep_alive; // flag, add By Roger
         u16 time_out; // second, add By Roger
 };
 struct pwm_cmd_l{

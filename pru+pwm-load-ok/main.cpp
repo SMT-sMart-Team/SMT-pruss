@@ -102,10 +102,6 @@ unsigned int chPWM[MAX_PWMS][2]; // 0: period, 1: high
             enmask = PWM_CMD->enmask; \
 			for(ii = 0; ii < MAX_PWMS; ii++) \
 			{ \
-                if(11 == ii | 9 == ii) \
-                { \
-                    continue; \
-                } \
 				chPWM[ii ][0] = PWM_CMD->hilo_read[ii][0] = PWM_CMD->periodhi[ii][0]; \
 				chPWM[ii][1] = PWM_CMD->hilo_read[ii][1] = PWM_CMD->periodhi[ii][1]; \
 				if(chPWM[ii][0] <= chPWM[ii][1]) /*error configs*/ \
@@ -179,7 +175,7 @@ int main(void) //(int argc, char *argv[])
     PWM_CMD->magic = 0xFFFFFFFF;
     PWM_CMD->enmask = 0x0;
     PWM_CMD->keep_alive = 0xFFFF;
-    PWM_CMD->time_out = TIME_OUT_DEFAULT; // default should be 1 second
+    PWM_CMD->time_out = TIME_OUT_DEFAULT; // default should be 10 second
 
     // wait for host start 
     while(PWM_CMD_KEEP_ALIVE != PWM_CMD->keep_alive);
@@ -238,17 +234,14 @@ int main(void) //(int argc, char *argv[])
             if(PWM_CMD_KEEP_ALIVE == PWM_CMD->keep_alive)
             {
                 PWM_CMD->keep_alive = PWM_REPLY_KEEP_ALIVE;
-                PWM_CMD->hilo_read[11][1] = PRU_us(9876);
             }
             else 
             {
                 time_out++;
-                PWM_CMD->hilo_read[11][1] = PRU_us(5432);
                 if(time_out > PWM_CMD->time_out)
                 {
                     // host is dead, so sth very bad has happened, make sure no PWM out when this time and exit pru
                     __R30 = 0;
-                    PWM_CMD->hilo_read[9][1] = PRU_us(777);
                     break;
                 }
             }
