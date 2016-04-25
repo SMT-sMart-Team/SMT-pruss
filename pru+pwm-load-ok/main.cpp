@@ -21,8 +21,8 @@ volatile register uint32_t __R31;
 
 #define REVERT_BY_SW
 
-#define CHECK_PERIOD_MS 100 // 100ms 
-#define TIME_OUT_DEFAULT 20 // 20*100ms = 2s 
+#define CHECK_PERIOD_MS 50 // 50ms 
+#define TIME_OUT_DEFAULT 20 // 20*50ms = 1s 
 
 
 static inline u32 read_PIEP_COUNT(void)
