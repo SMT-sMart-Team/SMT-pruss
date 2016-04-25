@@ -19,7 +19,7 @@ volatile register uint32_t __R31;
 #endif
 
 
-#define MOTOR_CH 8
+#define REVERT_BY_SW
 
 #define CHECK_PERIOD_MS 500 // 500ms 
 #define TIME_OUT_DEFAULT 20 // 20*500ms = 10s
@@ -102,8 +102,8 @@ unsigned int chPWM[MAX_PWMS][2]; // 0: period, 1: high
             enmask = PWM_CMD->enmask; \
 			for(ii = 0; ii < MAX_PWMS; ii++) \
 			{ \
-				chPWM[ii ][0] = PWM_CMD->hilo_read[ii][0] = PWM_CMD->periodhi[ii][0]; \
-				chPWM[ii][1] = PWM_CMD->hilo_read[ii][1] = PWM_CMD->periodhi[ii][1]; \
+				chPWM[ii ][0] = PWM_CMD->periodhi[ii][0]; \
+				chPWM[ii][1] = PWM_CMD->periodhi[ii][1]; \
 				if(chPWM[ii][0] <= chPWM[ii][1]) /*error configs*/ \
 				{ \
 					chPWM[ii][1] = chPWM[ii][0] - GAP; \
@@ -142,10 +142,12 @@ int main(void) //(int argc, char *argv[])
     ChanelObj chnObj[MAX_PWMS];
     u16 temp = 0;
     u16 time_out = 0;
-    // u32 currTime = 0;
+    u32 currTime = 0;
+    u32 prevTime = 0;
     time64 currTs64;
     u8 index = 0;
     u8 ii = 0;
+    u16 wbPeriod = 0;
     u16 enmask = 0;
     time64 keepAliveTs64;
 
@@ -182,16 +184,8 @@ int main(void) //(int argc, char *argv[])
     PWM_CMD->keep_alive = PWM_REPLY_KEEP_ALIVE;
 
     // record time stamp
-    currTs64.time_p1 = read_PIEP_COUNT();
-    if(PIEP_GLOBAL_STATUS & GLOBAL_STATUS_CNT_OVF) 
-    {
-        // clear 
-        PIEP_GLOBAL_STATUS |= GLOBAL_STATUS_CNT_OVF; 
+    prevTime = currTs64.time_p1 = read_PIEP_COUNT();
 
-        // reverse
-        currTs64.time_p2++;
-
-    }
     // update next keep alive ts
     TIME_ADD(keepAliveTs64, currTs64, PRU_ms(CHECK_PERIOD_MS));
 
@@ -200,7 +194,17 @@ int main(void) //(int argc, char *argv[])
 
         //step 1 : update current time.
         currTs64.time_p1 = read_PIEP_COUNT();
+        wbPeriod++;
         // count overflow
+#ifdef REVERT_BY_SW
+        if(prevTime > currTs64.time_p1)
+        {
+            // reverse
+            currTs64.time_p2++;
+
+        }
+        prevTime = currTs64.time_p1; 
+#else
         if(PIEP_GLOBAL_STATUS & GLOBAL_STATUS_CNT_OVF) 
         {
             // clear 
@@ -223,6 +227,7 @@ int main(void) //(int argc, char *argv[])
                         __R30 = temp;
 #endif
         }
+#endif
 
         // make sure host is alive when time is up to check
         if(TIME_GREATER(currTs64, keepAliveTs64))
@@ -252,6 +257,15 @@ int main(void) //(int argc, char *argv[])
         //step 2: judge current if it is arrive at rising edge time
         for (index = 0; index < MAX_PWMS; index++)
         {
+            // write back to HOST
+            if(wbPeriod > 10000)
+            {
+                if(index == (MAX_PWMS - 1))
+                {
+                    wbPeriod = 0;
+                }
+				PWM_CMD->hilo_read[index][1] = PWM_CMD->periodhi[index][1]; 
+            }
             if(TIME_GREATER(currTs64, chnObj[index].time_of_hi))
             {
                 // update configs if have any
