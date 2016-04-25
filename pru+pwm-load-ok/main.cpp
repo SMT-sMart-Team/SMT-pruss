@@ -21,8 +21,8 @@ volatile register uint32_t __R31;
 
 #define REVERT_BY_SW
 
-#define CHECK_PERIOD_MS 500 // 500ms 
-#define TIME_OUT_DEFAULT 20 // 20*500ms = 10s
+#define CHECK_PERIOD_MS 100 // 100ms 
+#define TIME_OUT_DEFAULT 20 // 20*100ms = 2s 
 
 
 static inline u32 read_PIEP_COUNT(void)
@@ -142,7 +142,6 @@ int main(void) //(int argc, char *argv[])
     ChanelObj chnObj[MAX_PWMS];
     u16 temp = 0;
     u16 time_out = 0;
-    u32 currTime = 0;
     u32 prevTime = 0;
     time64 currTs64;
     u8 index = 0;
@@ -163,9 +162,12 @@ int main(void) //(int argc, char *argv[])
         chnObj[index].time_of_lo.time_p2 = 0;
         chnObj[index].time_of_lo.time_p1 = 0;
         // default PWM
-        chPWM[index][0] = PRU_us(2500); // 50Hz
+        chPWM[index][0] = PRU_us(2500); // 400Hz 
         chPWM[index][1] = PRU_us(1100);
-        PWM_CMD->hilo_read[index][0] = PWM_CMD->hilo_read[index][1] = PWM_CMD->periodhi[index][0] = PWM_CMD->periodhi[index][1] = 0;
+        PWM_CMD->hilo_read[index][0] = 0;
+        PWM_CMD->hilo_read[index][1] = 0;
+        PWM_CMD->periodhi[index][0] = 0;
+        PWM_CMD->periodhi[index][1] = 0;
     }
 
     currTs64.time_p2 = 0;
