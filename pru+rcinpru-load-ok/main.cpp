@@ -99,8 +99,8 @@ int main(void)
         while ((v=read_pin()) == last_pin_value) {
           // noop
         }
-        uint32_t now = read_PIEP_COUNT();
-        uint32_t delta_time_us = TIME_SUB(now, last_time)/200;
+        uint32_t now = read_PIEP_COUNT()/200;
+        uint32_t delta_time_us = TIME_SUB(now, last_time);
         // uint32_t delta_time_us = 654; // now - last_time_us;
         last_time = now;
 
