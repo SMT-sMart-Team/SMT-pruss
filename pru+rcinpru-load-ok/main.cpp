@@ -40,16 +40,18 @@
 #endif
 
 #ifndef __GNUC__
-// volatile register uint32_t __R31;
+volatile register uint32_t __R31;
 #endif
 
-#define TIME_SUB(x, y) ((x >= y)?(x - y):(0xFFFFFFFF - y +x))
+#define TIME_SUB(x, y) ((x >= y)?(x - y):(0xFFFFFFFF - y + x))
 
+#if 0
 static void delay_us(unsigned int us)
 {
 	/* assume cpu frequency is 200MHz */
 	__delay_cycles (us * (1000 / 5));
 }
+#endif
 
 void add_to_ring_buffer(uint8_t v, uint16_t deltat)
 {
@@ -64,10 +66,7 @@ static inline u32 read_PIEP_COUNT(void)
 }
 
 uint32_t read_pin(void){
-    unsigned int tmp_r31 = __R31;
-    tmp_r31 = tmp_r31&(0x1 << 15); 
-    return (tmp_r31 != 0);
-    // return ((__R31&(1<<15)) != 0);
+    return ((__R31&(1<<15)) != 0);
     // return ((read_r31()&(1<<15)) != 0);
 }
 
@@ -76,7 +75,7 @@ uint32_t read_pin(void){
 int main(void)
 {
      uint32_t last_time = 0;
-     uint32_t last_pin_value = 0;
+     uint32_t last_pin_value = 0x0;
      /*PRU Initialisation*/
      PRUCFG_SYSCFG &= ~SYSCFG_STANDBY_INIT;
      PRUCFG_SYSCFG = (PRUCFG_SYSCFG &

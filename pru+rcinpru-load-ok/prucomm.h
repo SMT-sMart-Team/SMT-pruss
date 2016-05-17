@@ -7,7 +7,8 @@
 
 #include "pru_defs.h"
 
-#define NUM_RING_ENTRIES 300
+// #define NUM_RING_ENTRIES 300
+#define NUM_RING_ENTRIES 160 
     
 #define PWM_CMD_MAGIC    0xf00fbaaf
 #define PWM_REPLY_MAGIC  0xbaaff00f
