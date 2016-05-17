@@ -34,6 +34,13 @@
 #include "pru_defs.h"
 #include "prucomm.h"
 
+// #define FAKE_PPM
+#ifdef FAKE_PPM
+uint32_t fake_deltaT[9] = { /*CH1, CH2, CH3, CH4, CH5, CH6, CH7, CH8, END*/
+                            520, 540, 760, 580, 500, 510, 530, 560, 3310  
+                        };
+#endif
+
 
 #ifdef __GNUC__
 #include <pru/io.h>
@@ -76,6 +83,9 @@ int main(void)
 {
      uint32_t last_time = 0;
      uint32_t last_pin_value = 0x0;
+#ifdef FAKE_PPM
+     static uint32_t rc3in = 0;
+#endif
      /*PRU Initialisation*/
      PRUCFG_SYSCFG &= ~SYSCFG_STANDBY_INIT;
      PRUCFG_SYSCFG = (PRUCFG_SYSCFG &
@@ -95,6 +105,28 @@ int main(void)
      
      RBUFF->ring_tail = 20;
      while (1) {
+#ifdef FAKE_PPM
+         uint8_t ii = 0;
+         for(ii = 0; ii < 9; ii++)
+         {
+             if(2 == ii)
+             {
+                 if(0 == (rc3in%=650))
+                 {
+                     rc3in = 350;
+                 }
+                add_to_ring_buffer(1, rc3in);
+                add_to_ring_buffer(0, rc3in);
+                 rc3in++; 
+             }
+             else 
+             {
+                add_to_ring_buffer(1, fake_deltaT[ii]);
+                add_to_ring_buffer(0, fake_deltaT[ii]);
+             }
+         }
+
+#else
         uint32_t v;
         while ((v=read_pin()) == last_pin_value) {
           // noop
@@ -106,6 +138,7 @@ int main(void)
 
         add_to_ring_buffer(last_pin_value, delta_time_us);
         last_pin_value = v;
+#endif
      }
 
      /*
