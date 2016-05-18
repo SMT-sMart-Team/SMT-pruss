@@ -41,6 +41,8 @@ uint32_t fake_deltaT[9] = { /*CH1, CH2, CH3, CH4, CH5, CH6, CH7, CH8, END*/
                         };
 #endif
 
+#define DEBOUNCE_ENABLE
+#define DEBOUNCE_TIME 50 // us
 
 #ifdef __GNUC__
 #include <pru/io.h>
@@ -51,6 +53,7 @@ volatile register uint32_t __R31;
 #endif
 
 #define TIME_SUB(x, y) ((x >= y)?(x - y):(0xFFFFFFFF - y + x))
+
 
 #if 0
 static void delay_us(unsigned int us)
@@ -86,6 +89,19 @@ int main(void)
 #ifdef FAKE_PPM
      static uint32_t rc3in = 0;
 #endif
+
+#ifdef DEBOUNCE_ENABLE
+
+#define WAITING 0 
+#define DEBOUNCING 1 
+#define CONFIRM 2 
+
+     uint32_t v = 0; 
+     uint8_t state = WAITING;
+     uint32_t toggle_time = 0;
+     uint32_t delta_time_us = 0;
+#endif
+
      /*PRU Initialisation*/
      PRUCFG_SYSCFG &= ~SYSCFG_STANDBY_INIT;
      PRUCFG_SYSCFG = (PRUCFG_SYSCFG &
@@ -126,8 +142,43 @@ int main(void)
              }
          }
 
+#elif defined(DEBOUNCE_ENABLE)
+
+        switch(state)
+        {
+            case WAITING:
+                while ((v=read_pin()) == last_pin_value) {
+                }
+                toggle_time = read_PIEP_COUNT()/200;
+                state = DEBOUNCING;
+            case DEBOUNCING:
+                if(read_pin() == v) 
+                {
+                    if(DEBOUNCE_TIME <= TIME_SUB(read_PIEP_COUNT()/200, toggle_time))
+                    {
+                        // debounce done
+                        state = CONFIRM;
+                    }
+                }
+                else
+                {
+                    // invalid pulse
+                    state = WAITING;
+                }
+                break;
+            case CONFIRM:
+                delta_time_us = TIME_SUB(toggle_time, last_time);
+                // uint32_t delta_time_us = 654; // now - last_time_us;
+                last_time = toggle_time;
+                add_to_ring_buffer(last_pin_value, delta_time_us);
+                last_pin_value = v;
+                // back to wait next toggle
+                state = WAITING;
+                break;
+        }
+
 #else
-        uint32_t v;
+        uint32_t v; 
         while ((v=read_pin()) == last_pin_value) {
           // noop
         }
@@ -140,13 +191,6 @@ int main(void)
         last_pin_value = v;
 #endif
      }
-
-     /*
-	for (c = 0; ; c++) {
-		write_r30(c & 1 ? 0xffff : 0x0000);
-		delay_us (period_us);
-	}
-    */
 
 	return 0;
 }
