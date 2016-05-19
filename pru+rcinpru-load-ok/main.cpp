@@ -43,7 +43,7 @@ uint32_t fake_deltaT[18] = { /*CH1, CH2, CH3, CH4, CH5, CH6, CH7, CH8, END*/
 #endif
 
 #define DEBOUNCE_ENABLE
-#define DEBOUNCE_TIME 200 // us
+#define DEBOUNCE_TIME 50 // us
 
 #ifdef __GNUC__
 #include <pru/io.h>
