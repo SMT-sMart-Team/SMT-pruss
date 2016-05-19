@@ -36,13 +36,14 @@
 
 // #define FAKE_PPM
 #ifdef FAKE_PPM
-uint32_t fake_deltaT[9] = { /*CH1, CH2, CH3, CH4, CH5, CH6, CH7, CH8, END*/
-                            520, 540, 760, 580, 500, 510, 530, 560, 3310  
+uint32_t fake_deltaT[18] = { /*CH1, CH2, CH3, CH4, CH5, CH6, CH7, CH8, END*/
+                            350, 351, 450, 451, 400, 401, 500, 501, 
+                            600, 601, 700, 701, 800, 801, 900, 901, 3310, 3310  
                         };
 #endif
 
 #define DEBOUNCE_ENABLE
-#define DEBOUNCE_TIME 50 // us
+#define DEBOUNCE_TIME 200 // us
 
 #ifdef __GNUC__
 #include <pru/io.h>
@@ -55,7 +56,7 @@ volatile register uint32_t __R31;
 #define TIME_SUB(x, y) ((x >= y)?(x - y):(0xFFFFFFFF - y + x))
 
 
-#if 0
+#ifdef FAKE_PPM 
 static void delay_us(unsigned int us)
 {
 	/* assume cpu frequency is 200MHz */
@@ -86,9 +87,6 @@ int main(void)
 {
      uint32_t last_time = 0;
      uint32_t last_pin_value = 0x0;
-#ifdef FAKE_PPM
-     static uint32_t rc3in = 0;
-#endif
 
 #ifdef DEBOUNCE_ENABLE
 
@@ -120,27 +118,27 @@ int main(void)
 
      
      RBUFF->ring_tail = 20;
+#ifdef FAKE_PPM
+     uint8_t fake_idx = 0;
+     uint8_t idx = 0;
+     uint16_t dt = 0;
+#endif
      while (1) {
 #ifdef FAKE_PPM
+         delay_us(20*1000);
          uint8_t ii = 0;
          for(ii = 0; ii < 9; ii++)
          {
-             if(2 == ii)
-             {
-                 if(0 == (rc3in%=650))
-                 {
-                     rc3in = 350;
-                 }
-                add_to_ring_buffer(1, rc3in);
-                add_to_ring_buffer(0, rc3in);
-                 rc3in++; 
-             }
-             else 
-             {
-                add_to_ring_buffer(1, fake_deltaT[ii]);
-                add_to_ring_buffer(0, fake_deltaT[ii]);
-             }
+             idx = ii*2+fake_idx;
+             dt = fake_deltaT[idx];
+             add_to_ring_buffer(1, dt);
+             add_to_ring_buffer(0, dt);
          }
+
+         fake_idx++;
+        fake_idx %= 2;
+
+
 
 #elif defined(DEBOUNCE_ENABLE)
 
