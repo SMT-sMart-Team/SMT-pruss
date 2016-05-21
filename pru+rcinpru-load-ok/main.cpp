@@ -46,10 +46,17 @@ uint32_t fake_deltaT[18] = { /*CH1, CH2, CH3, CH4, CH5, CH6, CH7, CH8, END*/
 #define DEBOUNCE_TIME 1 // us
 
 #ifdef PPMSUM_DECODE
+// #define TEST_OUT
 struct {
-    int8_t _channel_counter;
+    uint8_t _channel_counter;
     uint16_t _pulse_capt[MAX_RCIN_NUM];
 } ppm_state;
+
+#ifdef TEST_OUT
+uint32_t fake_deltaT[9] = { /*CH1, CH2, CH3, CH4, CH5, CH6, CH7, CH8, END*/
+                            400, 410, 420, 430, 440, 450, 460, 470, 3310  
+                        };
+#endif
 #endif
 
 #ifdef __GNUC__
@@ -63,13 +70,11 @@ volatile register uint32_t __R31;
 #define TIME_SUB(x, y) ((x >= y)?(x - y):(0xFFFFFFFF - y + x))
 
 
-#ifdef FAKE_PPM 
 static void delay_us(unsigned int us)
 {
 	/* assume cpu frequency is 200MHz */
 	__delay_cycles (us * (1000 / 5));
 }
-#endif
 #ifndef DEBOUNCE_ENABLE
 void add_to_ring_buffer(uint8_t v, uint16_t deltat)
 {
@@ -99,7 +104,7 @@ void process_ppmsum_pulse(uint16_t width_usec)
     if(width_usec >= 2700) {
         // a long pulse indicates the end of a frame. Reset the
         // channel counter so next pulse is channel 0
-        if (ppm_state._channel_counter >= 5) {
+        if ((ppm_state._channel_counter != 0xFF) && (ppm_state._channel_counter >= 5)) {
             for (uint8_t i=0; i<ppm_state._channel_counter; i++) {
                 RBUFF->ppm_decode_out.rcin_value[i] = ppm_state._pulse_capt[i];
             }
@@ -109,7 +114,7 @@ void process_ppmsum_pulse(uint16_t width_usec)
         ppm_state._channel_counter = 0;
         return;
     }
-    if(ppm_state._channel_counter == -1) {
+    if(ppm_state._channel_counter == 0xFF) {
         // we are not synchronised
         return;
     }
@@ -130,13 +135,13 @@ void process_ppmsum_pulse(uint16_t width_usec)
 
     // if we have reached the maximum supported channels then
     // mark as unsynchronised, so we wait for a wide pulse
-    if (ppm_state._channel_counter >= MAX_RCIN_NUM) {
+    if ((ppm_state._channel_counter != 0xFF) && (ppm_state._channel_counter >= MAX_RCIN_NUM)) {
         for (uint8_t i=0; i<ppm_state._channel_counter; i++) {
             RBUFF->ppm_decode_out.rcin_value[i] = ppm_state._pulse_capt[i];
         }
         RBUFF->ppm_decode_out._num_channels = ppm_state._channel_counter;
         RBUFF->ppm_decode_out.new_rc_input = OK;
-        ppm_state._channel_counter = -1;
+        ppm_state._channel_counter = 0xFF;
     }
 }
 
@@ -149,7 +154,7 @@ int main(void)
      uint16_t tail_local = 0x0;
      uint16_t ii = 0;
 #ifdef PPMSUM_DECODE
-     ppm_state._channel_counter = -1;
+     ppm_state._channel_counter = 0xFF;
      uint16_t _s0_time = 0;
 #endif
 
@@ -164,6 +169,7 @@ int main(void)
      uint32_t toggle_time = 0;
      uint32_t delta_time_us = 0;
      uint8_t pass = 0;
+     uint8_t first = 1;
 #endif
 
      /*PRU Initialisation*/
@@ -193,7 +199,7 @@ int main(void)
      
      RBUFF->ppm_decode_out.new_rc_input = KO;
      RBUFF->ppm_decode_out._num_channels = 0;
-     ppm_state._channel_counter = 0;
+     ppm_state._channel_counter = 0xFF;
      for(ii = 0; ii < MAX_RCIN_NUM; ii++) 
      {
          RBUFF->ppm_decode_out.rcin_value[ii] = 0;
@@ -222,6 +228,10 @@ int main(void)
 
 
 #elif defined(DEBOUNCE_ENABLE)
+#ifdef  TEST_OUT
+        state = CONFIRM;
+        uint8_t id = 0;
+#endif
 
         switch(state)
         {
@@ -246,7 +256,15 @@ int main(void)
                 }
                 break;
             case CONFIRM:
-                delta_time_us = TIME_SUB(toggle_time, last_time);
+                if(!first)
+                {
+                    delta_time_us = TIME_SUB(toggle_time, last_time);
+                }
+                else
+                {
+                    delta_time_us  = 0;
+                    first  = 0;
+                }
                 // uint32_t delta_time_us = 654; // now - last_time_us;
                 last_time = toggle_time;
                 // add_to_ring_buffer(last_pin_value, delta_time_us);
@@ -264,6 +282,22 @@ int main(void)
                     RBUFF->ring_tail = tail_local;
                 }
 #ifdef PPMSUM_DECODE
+
+#ifdef TEST_OUT
+                delay_us(20*1000);
+                v = (v + 1)%2;
+                if(1 == v)
+                {
+                    delta_time_us = 400;
+                }
+                else
+                {
+                    delta_time_us = fake_deltaT[id];
+                    id++;
+                    id %=9;
+                }
+
+#endif
                 if (last_pin_value == 1) {
                     // remember the time we spent in the low state
                     _s0_time = delta_time_us;
