@@ -63,13 +63,18 @@ static void delay_us(unsigned int us)
 	__delay_cycles (us * (1000 / 5));
 }
 #endif
-
+#ifndef DEBOUNCE_ENABLE
 void add_to_ring_buffer(uint8_t v, uint16_t deltat)
 {
-    RBUFF->buffer[RBUFF->ring_tail].pin_value = v;
-    RBUFF->buffer[RBUFF->ring_tail].delta_t = deltat;
-    RBUFF->ring_tail = (RBUFF->ring_tail + 1) % NUM_RING_ENTRIES;
+    RBUFF->buffer[tail_local].pin_value = v;
+    RBUFF->buffer[tail_local].delta_t = deltat;
+    tail_local = (tail_local + 1) % NUM_RING_ENTRIES;
+    // RBUFF->buffer[RBUFF->ring_tail].pin_value = v;
+    // RBUFF->buffer[RBUFF->ring_tail].delta_t = deltat;
+    // update to Host
+    RBUFF->ring_tail = tail_local;
 }
+#endif
 
 static inline u32 read_PIEP_COUNT(void)
 {
@@ -87,6 +92,7 @@ int main(void)
 {
      uint32_t last_time = 0;
      uint32_t last_pin_value = 0x0;
+     uint16_t tail_local = 0x0;
 
 #ifdef DEBOUNCE_ENABLE
 
@@ -98,6 +104,7 @@ int main(void)
      uint8_t state = WAITING;
      uint32_t toggle_time = 0;
      uint32_t delta_time_us = 0;
+     uint8_t pass = 0;
 #endif
 
      /*PRU Initialisation*/
@@ -117,7 +124,7 @@ int main(void)
         PIEP_GLOBAL_CFG |= GLOBAL_CFG_CNT_ENABLE;
 
      
-     RBUFF->ring_tail = 20;
+     RBUFF->ring_tail = 0x0;
 #ifdef FAKE_PPM
      uint8_t fake_idx = 0;
      uint8_t idx = 0;
@@ -168,7 +175,22 @@ int main(void)
                 delta_time_us = TIME_SUB(toggle_time, last_time);
                 // uint32_t delta_time_us = 654; // now - last_time_us;
                 last_time = toggle_time;
-                add_to_ring_buffer(last_pin_value, delta_time_us);
+                // add_to_ring_buffer(last_pin_value, delta_time_us);
+                //
+                RBUFF->buffer[tail_local].pin_value = last_pin_value;
+                RBUFF->buffer[tail_local].delta_t = delta_time_us;
+                tail_local = (tail_local + 1) % NUM_RING_ENTRIES;
+                // RBUFF->buffer[RBUFF->ring_tail].pin_value = v;
+                // RBUFF->buffer[RBUFF->ring_tail].delta_t = deltat;
+                // update to Host
+                pass++;
+                if(!(pass%16))
+                {
+                    pass = 0;
+                    RBUFF->ring_tail = tail_local;
+                }
+                //
+                //
                 last_pin_value = v;
                 // back to wait next toggle
                 state = WAITING;
