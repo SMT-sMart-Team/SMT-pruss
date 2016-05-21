@@ -109,7 +109,7 @@ void process_ppmsum_pulse(uint16_t width_usec)
         ppm_state._channel_counter = 0;
         return;
     }
-    if (ppm_state._channel_counter == -1) {
+    if(ppm_state._channel_counter == -1) {
         // we are not synchronised
         return;
     }
