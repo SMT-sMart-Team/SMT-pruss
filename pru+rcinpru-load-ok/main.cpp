@@ -45,6 +45,13 @@ uint32_t fake_deltaT[18] = { /*CH1, CH2, CH3, CH4, CH5, CH6, CH7, CH8, END*/
 #define DEBOUNCE_ENABLE
 #define DEBOUNCE_TIME 1 // us
 
+#ifdef PPMSUM_DECODE
+struct {
+    int8_t _channel_counter;
+    uint16_t _pulse_capt[MAX_RCIN_NUM];
+} ppm_state;
+#endif
+
 #ifdef __GNUC__
 #include <pru/io.h>
 #endif
@@ -86,6 +93,53 @@ uint32_t read_pin(void){
     // return ((read_r31()&(1<<15)) != 0);
 }
 
+
+void process_ppmsum_pulse(uint16_t width_usec)
+{
+    if(width_usec >= 2700) {
+        // a long pulse indicates the end of a frame. Reset the
+        // channel counter so next pulse is channel 0
+        if (ppm_state._channel_counter >= 5) {
+            for (uint8_t i=0; i<ppm_state._channel_counter; i++) {
+                RBUFF->ppm_decode_out.rcin_value[i] = ppm_state._pulse_capt[i];
+            }
+            RBUFF->ppm_decode_out._num_channels = ppm_state._channel_counter;
+            RBUFF->ppm_decode_out.new_rc_input = OK;
+        }
+        ppm_state._channel_counter = 0;
+        return;
+    }
+    if (ppm_state._channel_counter == -1) {
+        // we are not synchronised
+        return;
+    }
+
+    /*
+      we limit inputs to between 700usec and 2300usec. This allows us
+      to decode SBUS on the same pin, as SBUS will have a maximum
+      pulse width of 100usec
+     */
+    if (width_usec > 700 && width_usec < 2300) {
+        // take a reading for the current channel
+        // buffer these
+        ppm_state._pulse_capt[ppm_state._channel_counter] = width_usec;
+
+        // move to next channel
+        ppm_state._channel_counter++;
+    }
+
+    // if we have reached the maximum supported channels then
+    // mark as unsynchronised, so we wait for a wide pulse
+    if (ppm_state._channel_counter >= MAX_RCIN_NUM) {
+        for (uint8_t i=0; i<ppm_state._channel_counter; i++) {
+            RBUFF->ppm_decode_out.rcin_value[i] = ppm_state._pulse_capt[i];
+        }
+        RBUFF->ppm_decode_out._num_channels = ppm_state._channel_counter;
+        RBUFF->ppm_decode_out.new_rc_input = OK;
+        ppm_state._channel_counter = -1;
+    }
+}
+
 // const unsigned int period_us = 250 * 1000;
 
 int main(void)
@@ -94,6 +148,10 @@ int main(void)
      uint32_t last_pin_value = 0x0;
      uint16_t tail_local = 0x0;
      uint16_t ii = 0;
+#ifdef PPMSUM_DECODE
+     ppm_state._channel_counter = -1;
+     uint16_t _s0_time = 0;
+#endif
 
 #ifdef DEBOUNCE_ENABLE
 
@@ -131,6 +189,15 @@ int main(void)
      {
          RBUFF->buffer[ii].pin_value = 0;
          RBUFF->buffer[ii].delta_t = 0;
+     }
+     
+     RBUFF->ppm_decode_out.new_rc_input = KO;
+     RBUFF->ppm_decode_out._num_channels = 0;
+     ppm_state._channel_counter = 0;
+     for(ii = 0; ii < MAX_RCIN_NUM; ii++) 
+     {
+         RBUFF->ppm_decode_out.rcin_value[ii] = 0;
+         ppm_state._pulse_capt[ii] = 0;
      }
 #ifdef FAKE_PPM
      uint8_t fake_idx = 0;
@@ -196,6 +263,16 @@ int main(void)
                     pass = 0;
                     RBUFF->ring_tail = tail_local;
                 }
+#ifdef PPMSUM_DECODE
+                if (last_pin_value == 1) {
+                    // remember the time we spent in the low state
+                    _s0_time = delta_time_us;
+                } else {
+                    // the pulse value is the sum of the time spent in the low
+                    // and high states
+                    process_ppmsum_pulse(_s0_time + delta_time_us);
+                }
+#endif
                 //
                 //
                 last_pin_value = v;
