@@ -93,6 +93,7 @@ int main(void)
      uint32_t last_time = 0;
      uint32_t last_pin_value = 0x0;
      uint16_t tail_local = 0x0;
+     uint16_t ii = 0;
 
 #ifdef DEBOUNCE_ENABLE
 
@@ -125,6 +126,12 @@ int main(void)
 
      
      RBUFF->ring_tail = 0x0;
+     RBUFF->ring_head = 0x0;
+     for(ii = 0; ii < NUM_RING_ENTRIES; ii++) 
+     {
+         RBUFF->buffer[ii].pin_value = 0;
+         RBUFF->buffer[ii].delta_t = 0;
+     }
 #ifdef FAKE_PPM
      uint8_t fake_idx = 0;
      uint8_t idx = 0;
