@@ -53,7 +53,7 @@ struct {
 } ppm_state;
 
 #ifdef TEST_OUT
-uint32_t fake_deltaT[9] = { /*CH1, CH2, CH3, CH4, CH5, CH6, CH7, CH8, END*/
+uint16_t fake_deltaT[9] = { /*CH1, CH2, CH3, CH4, CH5, CH6, CH7, CH8, END*/
                             400, 410, 420, 430, 440, 450, 460, 470, 3310  
                         };
 #endif
@@ -172,6 +172,10 @@ int main(void)
      uint32_t delta_time_us = 0;
      uint8_t pass = 0;
      uint8_t first = 1;
+#ifdef TEST_OUT
+     uint8_t id = 0;
+     v = 1; // for test
+#endif
 #endif
 
      /*PRU Initialisation*/
@@ -232,7 +236,6 @@ int main(void)
 #elif defined(DEBOUNCE_ENABLE)
 #ifdef  TEST_OUT
         state = CONFIRM;
-        uint8_t id = 0;
 #endif
 
         switch(state)
@@ -287,29 +290,25 @@ int main(void)
 
 #ifdef TEST_OUT
                 delay_us(20*1000);
-                v = (v + 1)%2;
-                if(1 == v)
+                v = v?0:1;
+                delta_time_us = fake_deltaT[id/2];
+                // delta_time_us = delta_time_us*2;
+                id = id+1;
+                if(id == 18)
                 {
-                    delta_time_us = 400;
+                    id = 0;
                 }
-                else
-                {
-                    delta_time_us = fake_deltaT[id];
-                    id++;
-                    id %=9;
-                }
+#endif
 
-                    process_ppmsum_pulse(2*delta_time_us);
-#else
                 if (last_pin_value == 1) {
                     // remember the time we spent in the low state
                     _s0_time = delta_time_us;
                 } else {
                     // the pulse value is the sum of the time spent in the low
                     // and high states
-                    process_ppmsum_pulse(_s0_time + delta_time_us);
+                    _s0_time = _s0_time + delta_time_us;
+                    process_ppmsum_pulse(_s0_time);
                 }
-#endif
 #endif
                 //
                 //
