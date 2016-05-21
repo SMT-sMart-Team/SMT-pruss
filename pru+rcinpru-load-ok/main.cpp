@@ -69,12 +69,14 @@ volatile register uint32_t __R31;
 
 #define TIME_SUB(x, y) ((x >= y)?(x - y):(0xFFFFFFFF - y + x))
 
-
+#if defined(FAKE_PPM) || defined(TEST_OUT)
 static void delay_us(unsigned int us)
 {
 	/* assume cpu frequency is 200MHz */
 	__delay_cycles (us * (1000 / 5));
 }
+#endif
+
 #ifndef DEBOUNCE_ENABLE
 void add_to_ring_buffer(uint8_t v, uint16_t deltat)
 {
@@ -297,7 +299,8 @@ int main(void)
                     id %=9;
                 }
 
-#endif
+                    process_ppmsum_pulse(2*delta_time_us);
+#else
                 if (last_pin_value == 1) {
                     // remember the time we spent in the low state
                     _s0_time = delta_time_us;
@@ -306,6 +309,7 @@ int main(void)
                     // and high states
                     process_ppmsum_pulse(_s0_time + delta_time_us);
                 }
+#endif
 #endif
                 //
                 //
