@@ -8,7 +8,7 @@
 #include "pru_defs.h"
 
 // AB ZhaoYJ for trying to add PPMSUM decoding in PRU @2016-05-21
-// #define PPMSUM_DECODE 
+#define PPMSUM_DECODE 
 #define MAX_RCIN_NUM 16
 #define OK 0xbeef
 #define KO 0x4110 /// !beef
