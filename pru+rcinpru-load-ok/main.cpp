@@ -101,6 +101,7 @@ uint32_t read_pin(void){
 }
 
 
+#ifdef PPMSUM_DECODE
 void process_ppmsum_pulse(uint16_t width_usec)
 {
     if(width_usec >= 2700) {
@@ -146,6 +147,7 @@ void process_ppmsum_pulse(uint16_t width_usec)
         ppm_state._channel_counter = 0xFF;
     }
 }
+#endif
 
 // const unsigned int period_us = 250 * 1000;
 
@@ -203,6 +205,7 @@ int main(void)
          RBUFF->buffer[ii].delta_t = 0;
      }
      
+#ifdef PPMSUM_DECODE
      RBUFF->ppm_decode_out.new_rc_input = KO;
      RBUFF->ppm_decode_out._num_channels = 0;
      ppm_state._channel_counter = 0xFF;
@@ -211,6 +214,8 @@ int main(void)
          RBUFF->ppm_decode_out.rcin_value[ii] = 0;
          ppm_state._pulse_capt[ii] = 0;
      }
+#endif
+
 #ifdef FAKE_PPM
      uint8_t fake_idx = 0;
      uint8_t idx = 0;
