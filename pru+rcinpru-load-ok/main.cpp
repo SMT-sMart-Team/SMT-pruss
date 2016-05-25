@@ -45,18 +45,19 @@ uint32_t fake_deltaT[18] = { /*CH1, CH2, CH3, CH4, CH5, CH6, CH7, CH8, END*/
 #define DEBOUNCE_ENABLE
 #define DEBOUNCE_TIME 1 // us
 
-#ifdef PPMSUM_DECODE
 // #define TEST_OUT
+//
+#ifdef PPMSUM_DECODE
 struct {
     uint8_t _channel_counter;
     uint16_t _pulse_capt[MAX_RCIN_NUM];
 } ppm_state;
+#endif
 
 #ifdef TEST_OUT
 uint16_t fake_deltaT[9] = { /*CH1, CH2, CH3, CH4, CH5, CH6, CH7, CH8, END*/
-                            400, 410, 420, 430, 440, 450, 460, 470, 3310  
+                            400, 410, 580, 430, 440, 450, 460, 470, 3310  
                         };
-#endif
 #endif
 
 #ifdef __GNUC__
@@ -279,6 +280,17 @@ int main(void)
                 last_time = toggle_time;
                 // add_to_ring_buffer(last_pin_value, delta_time_us);
                 //
+#ifdef TEST_OUT
+                delay_us(20*1000);
+                v = v?0:1;
+                delta_time_us = fake_deltaT[id/2];
+                // delta_time_us = delta_time_us*2;
+                id = id+1;
+                if(id == 18)
+                {
+                    id = 0;
+                }
+#endif
                 RBUFF->buffer[tail_local].pin_value = last_pin_value;
                 RBUFF->buffer[tail_local].delta_t = delta_time_us;
                 tail_local = (tail_local + 1) % NUM_RING_ENTRIES;
@@ -293,17 +305,6 @@ int main(void)
                 }
 #ifdef PPMSUM_DECODE
 
-#ifdef TEST_OUT
-                delay_us(20*1000);
-                v = v?0:1;
-                delta_time_us = fake_deltaT[id/2];
-                // delta_time_us = delta_time_us*2;
-                id = id+1;
-                if(id == 18)
-                {
-                    id = 0;
-                }
-#endif
 
                 if (last_pin_value == 1) {
                     // remember the time we spent in the low state
