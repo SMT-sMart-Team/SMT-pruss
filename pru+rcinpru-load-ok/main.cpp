@@ -44,6 +44,7 @@ uint32_t fake_deltaT[18] = { /*CH1, CH2, CH3, CH4, CH5, CH6, CH7, CH8, END*/
 
 #define DEBOUNCE_ENABLE
 #define DEBOUNCE_TIME 1 // us
+#define PULSE_NUM_PER_PERIOD 1 // 1: every pulse will be update to ARM
 
 // #define TEST_OUT
 //
@@ -298,7 +299,7 @@ int main(void)
                 // RBUFF->buffer[RBUFF->ring_tail].delta_t = deltat;
                 // update to Host
                 pass++;
-                if(!(pass%16))
+                if(!(pass%PULSE_NUM_PER_PERIOD))
                 {
                     pass = 0;
                     RBUFF->ring_tail = tail_local;

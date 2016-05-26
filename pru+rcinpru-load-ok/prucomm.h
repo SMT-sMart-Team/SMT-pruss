@@ -13,8 +13,8 @@
 #define OK 0xbeef
 #define KO 0x4110 /// !beef
 
-#define NUM_RING_ENTRIES 256
-// #define NUM_RING_ENTRIES 300
+// #define NUM_RING_ENTRIES 256
+#define NUM_RING_ENTRIES 300
     
 #define PWM_CMD_MAGIC    0xf00fbaaf
 #define PWM_REPLY_MAGIC  0xbaaff00f
