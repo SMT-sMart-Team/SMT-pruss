@@ -69,7 +69,8 @@ uint16_t fake_deltaT[9] = { /*CH1, CH2, CH3, CH4, CH5, CH6, CH7, CH8, END*/
 volatile register uint32_t __R31;
 #endif
 
-#define TIME_SUB(x, y) ((x >= y)?(x - y):(0xFFFFFFFF - y + x))
+#define MAX_US 21474836 // 2^32/200 
+#define TIME_SUB(x, y) ((x >= y)?(x - y):(MAX_US - y + x))
 
 #if defined(FAKE_PPM) || defined(TEST_OUT)
 static void delay_us(unsigned int us)
