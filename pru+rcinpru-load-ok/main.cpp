@@ -43,7 +43,7 @@ uint32_t fake_deltaT[18] = { /*CH1, CH2, CH3, CH4, CH5, CH6, CH7, CH8, END*/
 #endif
 
 #define DEBOUNCE_ENABLE
-#define DEBOUNCE_TIME 1 // us
+#define DEBOUNCE_TIME 200 // 1 us
 #define PULSE_NUM_PER_PERIOD 1 // 1: every pulse will be update to ARM
 
 // #define TEST_OUT
@@ -70,7 +70,7 @@ volatile register uint32_t __R31;
 #endif
 
 #define MAX_US 21474836 // 2^32/200 
-#define TIME_SUB(x, y) ((x >= y)?(x - y):(MAX_US - y + x))
+#define TIME_SUB(x, y) ((x >= y)?(x - y):(0xFFFFFFFF - y + x))
 
 #if defined(FAKE_PPM) || defined(TEST_OUT)
 static void delay_us(unsigned int us)
@@ -251,12 +251,13 @@ int main(void)
             case WAITING:
                 while ((v=read_pin()) == last_pin_value) {
                 }
-                toggle_time = read_PIEP_COUNT()/200;
+                // toggle_time = read_PIEP_COUNT()/200;
+                toggle_time = read_PIEP_COUNT();
                 state = DEBOUNCING;
             case DEBOUNCING:
                 if(read_pin() == v) 
                 {
-                    if(DEBOUNCE_TIME <= TIME_SUB(read_PIEP_COUNT()/200, toggle_time))
+                    if(DEBOUNCE_TIME <= TIME_SUB(read_PIEP_COUNT(), toggle_time))
                     {
                         // debounce done
                         state = CONFIRM;
@@ -271,7 +272,7 @@ int main(void)
             case CONFIRM:
                 if(!first)
                 {
-                    delta_time_us = TIME_SUB(toggle_time, last_time);
+                    delta_time_us = TIME_SUB(toggle_time, last_time)/200;
                 }
                 else
                 {
