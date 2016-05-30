@@ -253,7 +253,9 @@ int main(void)
                 }
                 // toggle_time = read_PIEP_COUNT()/200;
                 toggle_time = read_PIEP_COUNT();
-                state = DEBOUNCING;
+                // state = DEBOUNCING;
+                state = CONFIRM;
+                break;
             case DEBOUNCING:
                 if(read_pin() == v) 
                 {
