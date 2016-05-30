@@ -26,7 +26,7 @@
   ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
   POSSIBILITY OF SUCH DAMAGE. */
 
-#include <pru/io.h>
+#include "resource_table_0.h"
 
 #define PRU0
 
@@ -34,7 +34,16 @@
 #include "pru_defs.h"
 #include "prucomm.h"
 
-#include "resource_table_0.h"
+
+#ifdef __GNUC__
+#include <pru/io.h>
+#endif
+
+#ifndef __GNUC__
+// volatile register uint32_t __R31;
+#endif
+
+#define TIME_SUB(x, y) ((x >= y)?(x - y):(0xFFFFFFFF - y +x))
 
 static void delay_us(unsigned int us)
 {
@@ -55,17 +64,19 @@ static inline u32 read_PIEP_COUNT(void)
 }
 
 uint32_t read_pin(void){
+    unsigned int tmp_r31 = __R31;
+    tmp_r31 = tmp_r31&(0x1 << 15); 
+    return (tmp_r31 != 0);
     // return ((__R31&(1<<15)) != 0);
-    return ((read_r31()&(1<<15)) != 0);
+    // return ((read_r31()&(1<<15)) != 0);
 }
 
-const unsigned int period_us = 250 * 1000;
+// const unsigned int period_us = 250 * 1000;
 
 int main(void)
 {
-	unsigned int c;
-     uint32_t last_time_us = 0;
-     uint8_t last_pin_value = 0;
+     uint32_t last_time = 0;
+     uint32_t last_pin_value = 0;
      /*PRU Initialisation*/
      PRUCFG_SYSCFG &= ~SYSCFG_STANDBY_INIT;
      PRUCFG_SYSCFG = (PRUCFG_SYSCFG &
@@ -89,9 +100,10 @@ int main(void)
         while ((v=read_pin()) == last_pin_value) {
           // noop
         }
-        uint32_t now = read_PIEP_COUNT()/200;
-        uint32_t delta_time_us = now - last_time_us;
-        last_time_us = now;
+        uint32_t now = read_PIEP_COUNT();
+        uint32_t delta_time_us = TIME_SUB(now, last_time)/200;
+        // uint32_t delta_time_us = 654; // now - last_time_us;
+        last_time = now;
 
         add_to_ring_buffer(last_pin_value, delta_time_us);
         last_pin_value = v;

@@ -549,6 +549,7 @@
 #endif
 
 #define DPRAM_SHARED	0x00012000
+// #define DPRAM_SHARED	0x00011000
 
 /* event definitions */
 #define SYSEV_ARM_TO_PRU0	21

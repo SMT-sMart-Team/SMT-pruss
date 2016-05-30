@@ -14,11 +14,21 @@
 #include "pru_defs.h"
 #include "prucomm.h"
 
+#define DEBUG_RC3IN
+#define TIME_SUB(x, y) ((x >= y)?(x - y):(0xFFFFFFFF - y + x))
+#define DELAY_US(us) \
+    unsigned int start = read_PIEP_COUNT(); \
+    while(TIME_SUB(read_PIEP_COUNT(), start) < PRU_us(us)) \
+    { }
+#define DELAY_NS(ns) \
+    unsigned int start = read_PIEP_COUNT(); \
+    while(TIME_SUB(read_PIEP_COUNT(), start) < PRU_ns(ns)) \
+    { }
 
 void add_to_ring_buffer(uint8_t v, uint16_t deltat)
 {
     RBUFF->buffer[RBUFF->ring_tail].pin_value = v;
-    RBUFF->buffer[RBUFF->ring_tail].delta_t = deltat;
+    RBUFF->buffer[RBUFF->ring_tail].delta_t = 789;// deltat;
     RBUFF->ring_tail = (RBUFF->ring_tail + 1) % NUM_RING_ENTRIES;
 }
 
@@ -53,15 +63,28 @@ void main()
     PIEP_CMP_CFG |= CMP_CFG_CMP_EN(1);
         PIEP_GLOBAL_CFG |= GLOBAL_CFG_CNT_ENABLE;
 
+
+
      
-     RBUFF->ring_tail = 20;
+     RBUFF->ring_tail = 16;
+     add_to_ring_buffer(0, 666);
+     add_to_ring_buffer(1, 123);
+     while (1) ;
      while (1) {
         uint32_t v;
+#ifdef DEBUG_RC3IN
+        // DELAY_NS(10000);
         while ((v=read_pin()) == last_pin_value) {
           // noop
         }
+#else
+        while ((v=read_pin()) == last_pin_value) {
+          // noop
+        }
+#endif
         uint32_t now = read_PIEP_COUNT()/200;
-        uint32_t delta_time_us = now - last_time_us;
+        // uint32_t delta_time_us = now - last_time_us;
+        uint32_t delta_time_us = 650;
         last_time_us = now;
 
         add_to_ring_buffer(last_pin_value, delta_time_us);
