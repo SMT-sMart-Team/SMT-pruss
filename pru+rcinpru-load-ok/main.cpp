@@ -34,32 +34,15 @@
 #include "pru_defs.h"
 #include "prucomm.h"
 
-// #define FAKE_PPM
-#ifdef FAKE_PPM
-uint32_t fake_deltaT[18] = { /*CH1, CH2, CH3, CH4, CH5, CH6, CH7, CH8, END*/
-                            350, 351, 450, 451, 400, 401, 500, 501, 
-                            600, 601, 700, 701, 800, 801, 900, 901, 3310, 3310  
-                        };
-#endif
 
 #define DEBOUNCE_ENABLE
 #define DEBOUNCE_TIME 200 // 1 us
 #define PULSE_NUM_PER_PERIOD 1 // 1: every pulse will be update to ARM
 
-// #define TEST_OUT
-//
-#ifdef PPMSUM_DECODE
-struct {
-    uint8_t _channel_counter;
-    uint16_t _pulse_capt[MAX_RCIN_NUM];
-} ppm_state;
-#endif
+#define WAITING 0 
+#define DEBOUNCING 1 
+#define CONFIRM 2 
 
-#ifdef TEST_OUT
-uint16_t fake_deltaT[9] = { /*CH1, CH2, CH3, CH4, CH5, CH6, CH7, CH8, END*/
-                            400, 410, 580, 430, 440, 450, 460, 470, 3310  
-                        };
-#endif
 
 #ifdef __GNUC__
 #include <pru/io.h>
@@ -72,13 +55,6 @@ volatile register uint32_t __R31;
 #define MAX_US 21474836 // 2^32/200 
 #define TIME_SUB(x, y) ((x >= y)?(x - y):(0xFFFFFFFF - y + x))
 
-#if defined(FAKE_PPM) || defined(TEST_OUT)
-static void delay_us(unsigned int us)
-{
-	/* assume cpu frequency is 200MHz */
-	__delay_cycles (us * (1000 / 5));
-}
-#endif
 
 #ifndef DEBOUNCE_ENABLE
 void add_to_ring_buffer(uint8_t v, uint16_t deltat)
@@ -103,51 +79,82 @@ uint32_t read_pin(void){
     // return ((read_r31()&(1<<15)) != 0);
 }
 
+uint32_t read_pin_ch(uint8_t chn_idx){
+    return ((__R31&(1<<15)) != 0);
+    // return ((read_r31()&(1<<15)) != 0);
+}
 
-#ifdef PPMSUM_DECODE
-void process_ppmsum_pulse(uint16_t width_usec)
+#ifdef MULTI_PWM
+    // treat all pins as pwm input
+uint8_t state_ch[MAX_RCIN_NUM];
+uint8_t last_pin_value_ch[MAX_RCIN_NUM];
+uint8_t first_ch[MAX_RCIN_NUM];
+uint32_t toggle_time_ch[MAX_RCIN_NUM];
+uint32_t last_time_ch[MAX_RCIN_NUM];
+void decode_multi_pwms()
 {
-    if(width_usec >= 2700) {
-        // a long pulse indicates the end of a frame. Reset the
-        // channel counter so next pulse is channel 0
-        if ((ppm_state._channel_counter != 0xFF) && (ppm_state._channel_counter >= 5)) {
-            for (uint8_t i=0; i<ppm_state._channel_counter; i++) {
-                RBUFF->ppm_decode_out.rcin_value[i] = ppm_state._pulse_capt[i];
-            }
-            RBUFF->ppm_decode_out._num_channels = ppm_state._channel_counter;
-            RBUFF->ppm_decode_out.new_rc_input = OK;
+    uint8_t chn_idx = 0;
+    uint32_t v = 0;
+    uint32_t delta_time_us_ch = 0;
+
+
+    for(chn_idx  = 0; chn_idx < MAX_RCIN_NUM; chn_idx++)
+    {
+        switch(state_ch[chn_idx])
+        {
+            case WAITING:
+                if((v=read_pin_ch(chn_idx)) == last_pin_value_ch[chn_idx]) {
+                    continue; // next channel
+                }
+                // toggle_time = read_PIEP_COUNT()/200;
+                toggle_time_ch[chn_idx] = read_PIEP_COUNT();
+                // state = DEBOUNCING;
+                // state = CONFIRM;
+                break;
+            case DEBOUNCING:
+                if((v=read_pin_ch(chn_idx)) != last_pin_value_ch[chn_idx]) {
+                    if(DEBOUNCE_TIME <= TIME_SUB(read_PIEP_COUNT(), toggle_time_ch[chn_idx]))
+                    {
+                        // debounce done
+                        state_ch[chn_idx] = CONFIRM;
+                    }
+                }
+                else
+                {
+                    // invalid pulse
+                    state_ch[chn_idx] = WAITING;
+                }
+                break;
+            case CONFIRM:
+                if(!first_ch[chn_idx])
+                {
+                    delta_time_us_ch = TIME_SUB(toggle_time_ch[chn_idx], last_time_ch[chn_idx])/200;
+                }
+                else
+                {
+                    delta_time_us_ch  = 0;
+                    first_ch[chn_idx] = 0;
+                }
+                // uint32_t delta_time_us = 654; // now - last_time_us;
+                last_time_ch[chn_idx] = toggle_time_ch[chn_idx];
+                // add_to_ring_buffer(last_pin_value, delta_time_us);
+                // 
+                //
+                if(last_pin_value_ch[chn_idx])
+                {
+                    RBUFF->multi_pwm_out[chn_idx].high = delta_time_us_ch;
+                }
+                else
+                {
+                    RBUFF->multi_pwm_out[chn_idx].low = delta_time_us_ch;
+                }
+                //
+                v=read_pin_ch(chn_idx);
+                last_pin_value_ch[chn_idx] = v;
+                // back to wait next toggle
+                state_ch[chn_idx] = WAITING;
+                break;
         }
-        ppm_state._channel_counter = 0;
-        return;
-    }
-    if(ppm_state._channel_counter == 0xFF) {
-        // we are not synchronised
-        return;
-    }
-
-    /*
-      we limit inputs to between 700usec and 2300usec. This allows us
-      to decode SBUS on the same pin, as SBUS will have a maximum
-      pulse width of 100usec
-     */
-    if (width_usec > 700 && width_usec < 2300) {
-        // take a reading for the current channel
-        // buffer these
-        ppm_state._pulse_capt[ppm_state._channel_counter] = width_usec;
-
-        // move to next channel
-        ppm_state._channel_counter++;
-    }
-
-    // if we have reached the maximum supported channels then
-    // mark as unsynchronised, so we wait for a wide pulse
-    if ((ppm_state._channel_counter != 0xFF) && (ppm_state._channel_counter >= MAX_RCIN_NUM)) {
-        for (uint8_t i=0; i<ppm_state._channel_counter; i++) {
-            RBUFF->ppm_decode_out.rcin_value[i] = ppm_state._pulse_capt[i];
-        }
-        RBUFF->ppm_decode_out._num_channels = ppm_state._channel_counter;
-        RBUFF->ppm_decode_out.new_rc_input = OK;
-        ppm_state._channel_counter = 0xFF;
     }
 }
 #endif
@@ -160,16 +167,9 @@ int main(void)
      uint32_t last_pin_value = 0x0;
      uint16_t tail_local = 0x0;
      uint16_t ii = 0;
-#ifdef PPMSUM_DECODE
-     ppm_state._channel_counter = 0xFF;
-     uint16_t _s0_time = 0;
-#endif
 
 #ifdef DEBOUNCE_ENABLE
 
-#define WAITING 0 
-#define DEBOUNCING 1 
-#define CONFIRM 2 
 
      uint32_t v = 0; 
      uint8_t state = WAITING;
@@ -177,10 +177,6 @@ int main(void)
      uint32_t delta_time_us = 0;
      uint8_t pass = 0;
      uint8_t first = 1;
-#ifdef TEST_OUT
-     uint8_t id = 0;
-     v = 1; // for test
-#endif
 #endif
 
      /*PRU Initialisation*/
@@ -207,44 +203,22 @@ int main(void)
          RBUFF->buffer[ii].pin_value = 0;
          RBUFF->buffer[ii].delta_t = 0;
      }
+
+#ifdef MULTI_PWM
+    // treat all pins as pwm input
+    for(ii = 0; ii < MAX_RCIN_NUM; ii++) 
+    {
+        state_ch[ii] = WAITING;
+        last_pin_value_ch[ii] = 0;
+        first_ch[ii] = 1;
+        toggle_time_ch[ii] = 0;
+    }
+#endif
      
-#ifdef PPMSUM_DECODE
-     RBUFF->ppm_decode_out.new_rc_input = KO;
-     RBUFF->ppm_decode_out._num_channels = 0;
-     ppm_state._channel_counter = 0xFF;
-     for(ii = 0; ii < MAX_RCIN_NUM; ii++) 
-     {
-         RBUFF->ppm_decode_out.rcin_value[ii] = 0;
-         ppm_state._pulse_capt[ii] = 0;
-     }
-#endif
 
-#ifdef FAKE_PPM
-     uint8_t fake_idx = 0;
-     uint8_t idx = 0;
-     uint16_t dt = 0;
-#endif
      while (1) {
-#ifdef FAKE_PPM
-         delay_us(20*1000);
-         uint8_t ii = 0;
-         for(ii = 0; ii < 9; ii++)
-         {
-             idx = ii*2+fake_idx;
-             dt = fake_deltaT[idx];
-             add_to_ring_buffer(1, dt);
-             add_to_ring_buffer(0, dt);
-         }
 
-         fake_idx++;
-        fake_idx %= 2;
-
-
-
-#elif defined(DEBOUNCE_ENABLE)
-#ifdef  TEST_OUT
-        state = CONFIRM;
-#endif
+#if defined(DEBOUNCE_ENABLE)
 
         switch(state)
         {
@@ -285,17 +259,6 @@ int main(void)
                 last_time = toggle_time;
                 // add_to_ring_buffer(last_pin_value, delta_time_us);
                 //
-#ifdef TEST_OUT
-                delay_us(20*1000);
-                v = v?0:1;
-                delta_time_us = fake_deltaT[id/2];
-                // delta_time_us = delta_time_us*2;
-                id = id+1;
-                if(id == 18)
-                {
-                    id = 0;
-                }
-#endif
                 RBUFF->buffer[tail_local].pin_value = last_pin_value;
                 RBUFF->buffer[tail_local].delta_t = delta_time_us;
                 tail_local = (tail_local + 1) % NUM_RING_ENTRIES;
@@ -308,19 +271,6 @@ int main(void)
                     pass = 0;
                     RBUFF->ring_tail = tail_local;
                 }
-#ifdef PPMSUM_DECODE
-
-
-                if (last_pin_value == 1) {
-                    // remember the time we spent in the low state
-                    _s0_time = delta_time_us;
-                } else {
-                    // the pulse value is the sum of the time spent in the low
-                    // and high states
-                    _s0_time = _s0_time + delta_time_us;
-                    process_ppmsum_pulse(_s0_time);
-                }
-#endif
                 //
                 //
                 last_pin_value = v;
@@ -341,6 +291,10 @@ int main(void)
 
         add_to_ring_buffer(last_pin_value, delta_time_us);
         last_pin_value = v;
+#endif
+#ifdef MULTI_PWM
+        // treat all pins as pwm input
+        decode_multi_pwms();
 #endif
      }
 

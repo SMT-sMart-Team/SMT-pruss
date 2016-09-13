@@ -9,7 +9,18 @@
 
 // AB ZhaoYJ for trying to add PPMSUM decoding in PRU @2016-05-21
 // #define PPMSUM_DECODE 
+//
+// AB ZhaoYJ for multi-pwm to replace ppm-sum @2016-09-13
+#define MULTI_PWM
+
+#ifdef MULTI_PWM
+#define MAX_RCIN_NUM 8
+#define NUM_RCIN_BUFF 64
+uint8_t pwm_map[MAX_RCIN_NUM] = {1, 2, 3, 4, 5, 6, 7, 8}; // FIXME: need to confirm
+#else
 #define MAX_RCIN_NUM 16
+#endif
+
 #define OK 0xbeef
 #define KO 0x4110 /// !beef
 
@@ -28,12 +39,12 @@ struct ring_buffer{
            volatile uint16_t delta_t;
     } buffer[NUM_RING_ENTRIES];
 
-#ifdef PPMSUM_DECODE 
+
+#ifdef MULTI_PWM 
     volatile struct {
-           volatile uint16_t rcin_value[MAX_RCIN_NUM];
-           volatile uint16_t new_rc_input;
-           volatile uint16_t _num_channels;
-    } ppm_decode_out;
+        volatile uint16_t high;
+        volatile uint16_t low;
+    }multi_pwm_out[MAX_RCIN_NUM];
 #endif
     // 
 };
