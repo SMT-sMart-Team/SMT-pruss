@@ -108,8 +108,7 @@ void decode_multi_pwms()
                 }
                 // toggle_time = read_PIEP_COUNT()/200;
                 toggle_time_ch[chn_idx] = read_PIEP_COUNT();
-                // state = DEBOUNCING;
-                // state = CONFIRM;
+                state_ch[chn_idx] = DEBOUNCING;
                 break;
             case DEBOUNCING:
                 if((v=read_pin_ch(chn_idx)) != last_pin_value_ch[chn_idx]) {
