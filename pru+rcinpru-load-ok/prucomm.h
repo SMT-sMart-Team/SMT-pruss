@@ -11,7 +11,7 @@
 // #define PPMSUM_DECODE 
 //
 // AB ZhaoYJ for multi-pwm to replace ppm-sum @2016-09-13
-#define MULTI_PWM
+// #define MULTI_PWM
 
 #ifdef MULTI_PWM
 #define MAX_RCIN_NUM 8
