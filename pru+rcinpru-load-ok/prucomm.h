@@ -16,7 +16,7 @@
 #ifdef MULTI_PWM
 #define MAX_RCIN_NUM 8
 #define NUM_RCIN_BUFF 64
-uint8_t pwm_map[MAX_RCIN_NUM] = {1, 2, 3, 4, 5, 6, 7, 8}; // FIXME: need to confirm
+uint8_t pwm_map[MAX_RCIN_NUM] = {15, 2, 3, 0, 1, 6, 7, 8}; // FIXME: need to confirm
 #else
 #define MAX_RCIN_NUM 16
 #endif

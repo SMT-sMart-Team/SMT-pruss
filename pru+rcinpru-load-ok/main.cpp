@@ -80,7 +80,7 @@ uint32_t read_pin(void){
 }
 
 uint32_t read_pin_ch(uint8_t chn_idx){
-    return ((__R31&(1<<15)) != 0);
+    return ((__R31&(1<<pwm_map[chn_idx])) != 0);
     // return ((read_r31()&(1<<15)) != 0);
 }
 
