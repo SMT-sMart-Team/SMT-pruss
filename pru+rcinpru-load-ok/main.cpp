@@ -98,7 +98,7 @@ void decode_multi_pwms()
     uint32_t delta_time_us_ch = 0;
 
 
-    for(chn_idx  = 0; chn_idx < MAX_RCIN_NUM; chn_idx++)
+    for(chn_idx  = PRU0_1ST_CH; chn_idx < MAX_RCIN_NUM; chn_idx++)
     {
         switch(state_ch[chn_idx])
         {
@@ -211,6 +211,8 @@ int main(void)
         last_pin_value_ch[ii] = 0;
         first_ch[ii] = 1;
         toggle_time_ch[ii] = 0;
+        RBUFF->multi_pwm_out[ii].high = 0;
+        RBUFF->multi_pwm_out[ii].low = 0;
     }
 #endif
      

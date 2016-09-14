@@ -14,8 +14,13 @@ struct pwm_config {
 	u32 lo_err;
 };
 
+// AB ZhaoYJ for multi-pwm to replace ppm-sum @2016-09-13
+// GPI is not enough in PRU0, so move some of in PRU1
+#define MULTI_PWM
 /* maximum (PRU0 + PRU1) */
 #define MAX_PWMS	12
+
+
 
 /* mask of the possibly enabled PWMs (due to h/w) */
 /* 14, 15 are not routed out for PRU1 */
@@ -76,5 +81,35 @@ struct cxt {
 
 /* the command is at the start of shared DPRAM */
 #define PWM_CMD		((volatile struct pwm_cmd *)DPRAM_SHARED)
+
+
+#ifdef MULTI_PWM
+#define MAX_RCIN_NUM 4
+uint8_t pwm_map[MAX_RCIN_NUM] = {3, 2, 1, 0}; // FIXME: need to confirm
+
+
+struct rcin{
+    volatile struct {
+        volatile uint16_t high;
+        volatile uint16_t low;
+    }multi_pwm_out[MAX_RCIN_NUM];
+};
+
+// copy from rcinput_pru.h
+struct rcin_ring_buffer {
+
+    volatile uint16_t ring_head; // owned by ARM CPU
+    volatile uint16_t ring_tail; // owned by the PRU
+    struct {
+        uint16_t pin_value;
+        uint16_t delta_t;
+    } buffer[300];
+};
+
+#define RCIN_PRUSS_SHAREDRAM_BASE   0x4a312000
+
+#define RCIN ((volatile struct rcin*)(RCIN_PRUSS_SHAREDRAM_BASE + sizeof(rcin_ring_buffer)))
+
+#endif
 
 #endif

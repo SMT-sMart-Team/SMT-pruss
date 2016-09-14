@@ -32,6 +32,95 @@ static inline u32 read_PIEP_COUNT(void)
 }
 
 
+// AB ZhaoYJ for dynamically change aux-rcout to rcin(CH1~CH4)
+uint32_t read_pin_ch(uint8_t chn_idx){
+    return ((__R31&(1<<pwm_map[chn_idx])) != 0);
+    // return ((read_r31()&(1<<15)) != 0);
+}
+
+#ifdef MULTI_PWM
+#define DEBOUNCE_ENABLE
+#define DEBOUNCE_TIME 200 // 1 us
+#define PULSE_NUM_PER_PERIOD 1 // 1: every pulse will be update to ARM
+#define MAX_US 21474836 // 2^32/200 
+#define TIME_SUB(x, y) ((x >= y)?(x - y):(0xFFFFFFFF - y + x))
+
+#define WAITING 0 
+#define DEBOUNCING 1 
+#define CONFIRM 2 
+    // treat all pins as pwm input
+uint8_t state_ch[MAX_RCIN_NUM];
+uint8_t last_pin_value_ch[MAX_RCIN_NUM];
+uint8_t first_ch[MAX_RCIN_NUM];
+uint32_t toggle_time_ch[MAX_RCIN_NUM];
+uint32_t last_time_ch[MAX_RCIN_NUM];
+void decode_multi_pwms()
+{
+    uint8_t chn_idx = 0;
+    uint32_t v = 0;
+    uint32_t delta_time_us_ch = 0;
+
+
+    for(chn_idx  = 0; chn_idx < MAX_RCIN_NUM; chn_idx++)
+    {
+        switch(state_ch[chn_idx])
+        {
+            case WAITING:
+                if((v=read_pin_ch(chn_idx)) == last_pin_value_ch[chn_idx]) {
+                    continue; // next channel
+                }
+                // toggle_time = read_PIEP_COUNT()/200;
+                toggle_time_ch[chn_idx] = read_PIEP_COUNT();
+                state_ch[chn_idx] = DEBOUNCING;
+                // break;
+            case DEBOUNCING:
+                if((v=read_pin_ch(chn_idx)) != last_pin_value_ch[chn_idx]) {
+                    if(DEBOUNCE_TIME <= TIME_SUB(read_PIEP_COUNT(), toggle_time_ch[chn_idx]))
+                    {
+                        // debounce done
+                        state_ch[chn_idx] = CONFIRM;
+                    }
+                }
+                else
+                {
+                    // invalid pulse
+                    state_ch[chn_idx] = WAITING;
+                }
+                break;
+            case CONFIRM:
+                if(!first_ch[chn_idx])
+                {
+                    delta_time_us_ch = TIME_SUB(toggle_time_ch[chn_idx], last_time_ch[chn_idx])/200;
+                }
+                else
+                {
+                    delta_time_us_ch  = 0;
+                    first_ch[chn_idx] = 0;
+                }
+                // uint32_t delta_time_us = 654; // now - last_time_us;
+                last_time_ch[chn_idx] = toggle_time_ch[chn_idx];
+                // add_to_ring_buffer(last_pin_value, delta_time_us);
+                // 
+                //
+                if(last_pin_value_ch[chn_idx])
+                {
+                    RCIN->multi_pwm_out[chn_idx].high = delta_time_us_ch;
+                }
+                else
+                {
+                    RCIN->multi_pwm_out[chn_idx].low = delta_time_us_ch;
+                }
+                //
+                v=read_pin_ch(chn_idx);
+                last_pin_value_ch[chn_idx] = v;
+                // back to wait next toggle
+                state_ch[chn_idx] = WAITING;
+                break;
+        }
+    }
+}
+#endif
+
 typedef struct
 {
     u32 time_p1;
@@ -193,6 +282,9 @@ int main(void) //(int argc, char *argv[])
 
     while (1)
     {
+
+        // step 0: update rcin: CH1~CH4
+        decode_multi_pwms();
 
         //step 1 : update current time.
         currTs64.time_p1 = read_PIEP_COUNT();
