@@ -100,6 +100,12 @@ void decode_multi_pwms()
 
     for(chn_idx  = PRU0_1ST_CH; chn_idx < MAX_RCIN_NUM; chn_idx++)
     {
+        // not a valid channel
+        if(0xFF == pwm_map[chn_idx])
+        {
+            continue;
+        }
+
         switch(state_ch[chn_idx])
         {
             case WAITING:

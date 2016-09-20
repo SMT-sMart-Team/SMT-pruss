@@ -14,10 +14,10 @@
 #define MULTI_PWM
 
 #ifdef MULTI_PWM
-#define MAX_RCIN_NUM 6 // actually only CH5(ppm/s.bus), CH6
+#define MAX_RCIN_NUM 8 // actually only CH5(ppm/s.bus), CH6
 #define PRU0_1ST_CH 4
 #define NUM_RCIN_BUFF 64
-uint8_t pwm_map[MAX_RCIN_NUM] = {0, 0, 0, 0, 15, 6}; // FIXME: need to confirm
+uint8_t pwm_map[MAX_RCIN_NUM] = {0xFF, 0xFF, 0xFF, 0xFF, 0xF, 0xFF, 0xFF, 0xFF}; // FIXME: need to confirm
 #else
 #define MAX_RCIN_NUM 16
 #endif
