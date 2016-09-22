@@ -84,8 +84,8 @@ struct cxt {
 
 
 #ifdef MULTI_PWM
-#define MAX_RCIN_NUM 4
-uint8_t pwm_map[MAX_RCIN_NUM] = {3, 2, 1, 0}; // FIXME: need to confirm
+#define MAX_RCIN_NUM 6
+uint8_t pwm_map[MAX_RCIN_NUM] = {5, 4, 3, 2, 1, 0}; // FIXME: need to confirm
 
 
 struct rcin{
