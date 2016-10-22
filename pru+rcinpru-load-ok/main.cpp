@@ -75,7 +75,7 @@ static inline u32 read_PIEP_COUNT(void)
 }
 
 uint32_t read_pin(void){
-    return ((__R31&(1<<15)) != 0);
+    return ((__R31&(1<<PPMSUM_PRU0_PIN)) != 0);
     // return ((read_r31()&(1<<15)) != 0);
 }
 
