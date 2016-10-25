@@ -82,7 +82,7 @@ void delay_us(uint32_t dly_us)
 
 
 uint32_t read_pin(void){
-    return ((__R31&(1<<PPMSUM_PIN)) != 0);
+    return ((__R31&(1<<PPMSUM_PRU0_PIN)) != 0);
     // return ((read_r31()&(1<<15)) != 0);
 }
 

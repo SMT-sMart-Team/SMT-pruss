@@ -10,8 +10,7 @@
 // AB ZhaoYJ for trying to add PPMSUM decoding in PRU @2016-05-21
 // #define PPMSUM_DECODE 
 // AB ZhaoYJ for ppmsum @2016-09-13
-#define PPMSUM_PIN 0x4
-//
+#define PPMSUM_PRU0_PIN 0x4
 // AB ZhaoYJ for multi-pwm to replace ppm-sum @2016-09-13
 #define MULTI_PWM
 
