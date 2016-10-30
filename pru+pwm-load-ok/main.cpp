@@ -14,9 +14,6 @@
 #include <pru/io.h>
 #endif
 
-#ifndef __GNUC__
-volatile register uint32_t __R31;
-#endif
 
 
 #define REVERT_BY_SW
@@ -307,19 +304,6 @@ int main(void) //(int argc, char *argv[])
             // reverse
             currTs64.time_p2++;
 
-#if 0
-                        temp = __R30;
-    				    temp |= (1U<<index);
-                        if(temp & BIT(8))
-                        {
-    				        temp &= ~BIT(8);
-                        }
-                        else
-                        {
-    				        temp |= BIT(8);
-                        }
-                        __R30 = temp;
-#endif
         }
 #endif
 
@@ -376,26 +360,14 @@ int main(void) //(int argc, char *argv[])
 
             	if(enmask & (1U << index))
                 {
-#ifdef __GNUC__
                         temp = __R30;
-    				    temp |= (1U<<index);
-                        __R30 = temp;
-#else
-    				    // __R30 |= (msk&(1U<<i));
-                        __R30 |= (1U << index); //pull up
-#endif
+    				    _R30 = temp | (1U<<index);
 
                 }
                 else // make sure low when disable
                 {
-#ifdef __GNUC__
                     temp = __R30;
-    				temp &= ~(1u << index);
-                    __R30 = temp;
-#else
-        			// __R30 &= ~(1U<<i);
-                    __R30 &= ~(1U << index); //pull down
-#endif
+    				__R30 &= temp & (~(1u << index));
                 }
                 continue;
             }
@@ -408,14 +380,8 @@ int main(void) //(int argc, char *argv[])
 
             	if(enmask & (1U << index))
                 {
-#ifdef __GNUC__
                         temp = __R30; 
-    				    temp &= ~(1u << index);
-                        __R30 = temp;
-#else
-        			// __R30 &= ~(1U<<i);
-                    __R30 &= ~(1U << index); //pull down
-#endif
+    				    __R30 = temp & (~(1u << index));
                 }
 
             }

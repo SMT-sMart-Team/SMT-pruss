@@ -48,9 +48,6 @@
 #include <pru/io.h>
 #endif
 
-#ifndef __GNUC__
-volatile register uint32_t __R31;
-#endif
 
 #define MAX_US 21474836 // 2^32/200 
 #define TIME_SUB(x, y) ((x >= y)?(x - y):(0xFFFFFFFF - y + x))
@@ -112,16 +109,6 @@ void decode_multi_pwms()
         {
             continue;
         }
-// #define FAKE
-#ifdef FAKE
-        
-        RBUFF->multi_pwm_out[chn_idx].high += chn_idx*100;
-        uint32_t tmp = __R30;
-        __R30 = tmp ^ (0x1 << 0x3);
-        // __R30 = tmp;
-        delay_us(1000);
-        continue;
-#endif
 
         switch(state_ch[chn_idx])
         {
@@ -303,17 +290,6 @@ int main(void)
                 break;
         }
 
-#else
-        uint32_t v; 
-        if((v=read_pin()) != last_pin_value) {
-            uint32_t now = read_PIEP_COUNT()/200;
-            uint32_t delta_time_us = TIME_SUB(now, last_time);
-            // uint32_t delta_time_us = 654; // now - last_time_us;
-            last_time = now;
-
-            add_to_ring_buffer(last_pin_value, delta_time_us);
-            last_pin_value = v;
-        }
 #endif
 #ifdef MULTI_PWM
         // treat all pins as pwm input

@@ -10,7 +10,7 @@
 // AB ZhaoYJ for trying to add PPMSUM decoding in PRU @2016-05-21
 // #define PPMSUM_DECODE 
 // AB ZhaoYJ for ppmsum @2016-09-13
-#define PPMSUM_PRU0_PIN 0x4
+#define PPMSUM_PRU0_PIN 0x7 // 0x4
 // AB ZhaoYJ for multi-pwm to replace ppm-sum @2016-09-13
 #define MULTI_PWM
 
@@ -18,7 +18,7 @@
 #define MAX_RCIN_NUM 8 // actually only CH5(ppm/s.bus), CH6
 #define NUM_RCIN_BUFF 64
 #define PRU0_1ST_CH 4 // rcin in pru0 start from CH5
-uint8_t pwm_map[MAX_RCIN_NUM] = {0xFF, 0xFF, 0xFF, 0xFF, 0x7, 0x5, 0x3, 0x4}; // FIXME: need to confirm
+uint8_t pwm_map[MAX_RCIN_NUM] = {0xFF, 0xFF, 0xFF, 0xFF, 0x7, 0x5, 0x6, 0x4}; // FIXME: need to confirm
 #else
 #define MAX_RCIN_NUM 16
 #endif
