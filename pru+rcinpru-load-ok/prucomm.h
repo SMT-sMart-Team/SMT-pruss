@@ -18,7 +18,7 @@
 #define MAX_RCIN_NUM 8 // actually only CH5(ppm/s.bus), CH6
 #define NUM_RCIN_BUFF 64
 #define PRU0_1ST_CH 4 // rcin in pru0 start from CH5
-uint8_t pwm_map[MAX_RCIN_NUM] = {0xFF, 0xFF, 0xFF, 0xFF, 0x7, 0x5, 0x6, 0x4}; // FIXME: need to confirm
+uint8_t pwm_map[MAX_RCIN_NUM] = {0xFF, 0xFF, 0xFF, 0xFF, 0x7, 0x5, 0x3, 0x4}; // FIXME: need to confirm
 #else
 #define MAX_RCIN_NUM 16
 #endif

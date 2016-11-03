@@ -36,6 +36,9 @@ uint32_t read_pin_ch(uint8_t chn_idx){
 }
 
 #ifdef MULTI_PWM
+// reduce max PWM_OUT from 12 to 8
+#define BYPASS_PWM_OUT_FOR_RCIN 
+
 #define DEBOUNCE_ENABLE
 #define DEBOUNCE_TIME 200 // 1 us
 #define PULSE_NUM_PER_PERIOD 1 // 1: every pulse will be update to ARM
@@ -177,6 +180,7 @@ inline u32 time_sub(time64 x, time64 y)
 #endif
 
 
+static const uint8_t chan_pru_map[MAX_PWMS]= {10,8,11,9,7,6,5,4,3,2,1,0};
 unsigned int chPWM[MAX_PWMS][2]; // 0: period, 1: high
 #define GAP 200 // us
 #define UPDATE_CONFIGS() \
@@ -333,8 +337,14 @@ int main(void) //(int argc, char *argv[])
         }
 
         //step 2: judge current if it is arrive at rising edge time
+#ifdef BYPASS_PWM_OUT_FOR_RCIN 
+        // bypass last 4CH for multi-pwm: rcin used them
+        for (index = 4; index < MAX_PWMS; index++)
+#else
         for (index = 0; index < MAX_PWMS; index++)
+#endif
         {
+
             // write back to HOST
             if(wbPeriod > 10000)
             {
@@ -361,13 +371,13 @@ int main(void) //(int argc, char *argv[])
             	if(enmask & (1U << index))
                 {
                         temp = __R30;
-    				    _R30 = temp | (1U<<index);
+    				    __R30 = temp | (1U<<index);
 
                 }
                 else // make sure low when disable
                 {
                     temp = __R30;
-    				__R30 &= temp & (~(1u << index));
+    				__R30 = temp & (~(1u << index));
                 }
                 continue;
             }
