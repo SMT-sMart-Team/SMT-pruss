@@ -38,6 +38,10 @@ uint32_t read_pin_ch(uint8_t chn_idx){
 #ifdef MULTI_PWM
 // reduce max PWM_OUT from 12 to 8
 #define BYPASS_PWM_OUT_FOR_RCIN 
+#ifdef BYPASS_PWM_OUT_FOR_RCIN
+// borrow rcin CH1 (r31 bit3->r30 bit3) to pwm_out CH10 for CROP control
+#define CROP_CONTROL_SY
+#endif
 
 #define DEBOUNCE_ENABLE
 #define DEBOUNCE_TIME 200 // 1 us
@@ -63,6 +67,13 @@ void decode_multi_pwms()
 
     for(chn_idx  = 0; chn_idx < MAX_RCIN_NUM; chn_idx++)
     {
+#ifdef CROP_CONTROL_SY
+    // borrow rcin CH1 (r31 bit3->r30 bit3) to pwm_out CH10 for CROP control
+        if(1 == chn_idx)
+        {
+            continue;
+        }
+#endif
         switch(state_ch[chn_idx])
         {
             case WAITING:
@@ -180,7 +191,6 @@ inline u32 time_sub(time64 x, time64 y)
 #endif
 
 
-static const uint8_t chan_pru_map[MAX_PWMS]= {10,8,11,9,7,6,5,4,3,2,1,0};
 unsigned int chPWM[MAX_PWMS][2]; // 0: period, 1: high
 #define GAP 200 // us
 #define UPDATE_CONFIGS() \
@@ -192,7 +202,7 @@ unsigned int chPWM[MAX_PWMS][2]; // 0: period, 1: high
             enmask = PWM_CMD->enmask; \
 			for(ii = 0; ii < MAX_PWMS; ii++) \
 			{ \
-				chPWM[ii ][0] = PWM_CMD->periodhi[ii][0]; \
+				chPWM[ii][0] = PWM_CMD->periodhi[ii][0]; \
 				chPWM[ii][1] = PWM_CMD->periodhi[ii][1]; \
 				if(chPWM[ii][0] <= chPWM[ii][1]) /*error configs*/ \
 				{ \
@@ -337,9 +347,15 @@ int main(void) //(int argc, char *argv[])
         }
 
         //step 2: judge current if it is arrive at rising edge time
+        // static const uint8_t chan_pru_map[MAX_PWMS]= {10,8,11,9,7,6,5,4,3,2,1,0};
 #ifdef BYPASS_PWM_OUT_FOR_RCIN 
+#ifdef CROP_CONTROL_SY
+        for (index = 3; index < MAX_PWMS; index++)
+#else
         // bypass last 4CH for multi-pwm: rcin used them
         for (index = 4; index < MAX_PWMS; index++)
+#endif
+
 #else
         for (index = 0; index < MAX_PWMS; index++)
 #endif
@@ -356,8 +372,25 @@ int main(void) //(int argc, char *argv[])
             }
             if(TIME_GREATER(currTs64, chnObj[index].time_of_hi))
             {
-                // update configs if have any
-            	UPDATE_CONFIGS();
+                // for aux channel, no need for magic_cmd
+                if(index <= 3)
+                {
+                    enmask = PWM_CMD->enmask; 
+			        for(ii = 0; ii < 3; ii++) 
+			        { 
+			        	chPWM[ii][0] = PWM_CMD->periodhi[ii][0]; 
+			        	chPWM[ii][1] = PWM_CMD->periodhi[ii][1]; 
+			        	if(chPWM[ii][0] <= chPWM[ii][1]) /*error configs*/ 
+			        	{ 
+			        		chPWM[ii][1] = chPWM[ii][0] - GAP; 
+			        	}
+			        } 
+                }
+                else // main channel
+                {
+                    // update configs if have any
+            	    UPDATE_CONFIGS();
+                }
 
                 // update time stamp
                 //chnObj[index].time_of_lo.time_p2 = 0;

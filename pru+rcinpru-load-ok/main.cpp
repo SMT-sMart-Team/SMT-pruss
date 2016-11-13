@@ -36,7 +36,7 @@
 
 
 #define DEBOUNCE_ENABLE
-#define DEBOUNCE_TIME 200 // 1 us
+#define DEBOUNCE_TIME 0 // 1 us
 #define PULSE_NUM_PER_PERIOD 1 // 1: every pulse will be update to ARM
 
 #define WAITING 0 
@@ -83,12 +83,12 @@ uint32_t read_pin(void){
     // return ((read_r31()&(1<<15)) != 0);
 }
 
+#ifdef MULTI_PWM
 uint32_t read_pin_ch(uint8_t chn_idx){
     return ((__R31&(1<<pwm_map[chn_idx])) != 0);
     // return ((read_r31()&(1<<15)) != 0);
 }
 
-#ifdef MULTI_PWM
     // treat all pins as pwm input
 uint8_t state_ch[MAX_RCIN_NUM];
 uint8_t last_pin_value_ch[MAX_RCIN_NUM];
@@ -254,8 +254,8 @@ int main(void)
                 {
                     // invalid pulse
                     state = WAITING;
+                    break;
                 }
-                break;
             case CONFIRM:
                 if(!first)
                 {
@@ -289,6 +289,7 @@ int main(void)
                 state = WAITING;
                 break;
         }
+#else
 
 #endif
 #ifdef MULTI_PWM
