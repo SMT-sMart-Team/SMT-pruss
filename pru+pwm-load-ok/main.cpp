@@ -35,11 +35,10 @@ uint32_t read_pin_ch(uint8_t chn_idx){
     // return ((read_r31()&(1<<15)) != 0);
 }
 
-#ifdef MULTI_PWM
 // reduce max PWM_OUT from 12 to 8
 #define BYPASS_PWM_OUT_FOR_RCIN 
 #ifdef BYPASS_PWM_OUT_FOR_RCIN
-// borrow rcin CH1 (r31 bit3->r30 bit3) to pwm_out CH10 for CROP control
+// borrow rcin CH1 (r31 bit2->r30 bit2) to pwm_out CH10 for CROP control
 #define CROP_CONTROL_SY
 #endif
 
@@ -52,6 +51,8 @@ uint32_t read_pin_ch(uint8_t chn_idx){
 #define WAITING 0 
 #define DEBOUNCING 1 
 #define CONFIRM 2 
+
+#ifdef MULTI_PWM
     // treat all pins as pwm input
 uint8_t state_ch[MAX_RCIN_NUM];
 uint8_t last_pin_value_ch[MAX_RCIN_NUM];
@@ -68,8 +69,8 @@ void decode_multi_pwms()
     for(chn_idx  = 0; chn_idx < MAX_RCIN_NUM; chn_idx++)
     {
 #ifdef CROP_CONTROL_SY
-    // borrow rcin CH1 (r31 bit3->r30 bit3) to pwm_out CH10 for CROP control
-        if(1 == chn_idx)
+        // borrow rcin CH1 (r31 bit2->r30 bit2) to pwm_out CH10 for CROP control
+        if(0 == chn_idx)
         {
             continue;
         }
@@ -156,39 +157,6 @@ typedef struct {
 		} \
 	} while(0)
 
-#if 0
-// only handle x > y condition
-inline u32 time_sub(time64 x, time64 y)
-{
-
-    time64 ret;
-
-    if(time_greater(x, y))
-    {
-        if(x.time_p2 == y.time_p2)
-        {
-            ret.time_p2 = 0;
-            ret.time_p1 = x.time_p1 - y.time_p1;
-
-        }
-        else
-        {
-            if(x.time_p1 > y.time_p1)
-            {
-                ret.time_p2 = x.time_p2 - y.time_p2;
-                ret.time_p1 = x.time_p1 - y.time_p1;
-            }
-            else
-            {
-                ret.time_p2 = x.time_p2 - 1 - y.time_p2;
-                ret.time_p1 = 0xFFFFFFFF - y.time_p1 + x.time_p1;
-            }
-        }
-    }
-    return ret.time_p1; // we believe that the reverse should be just one time
-
-}
-#endif
 
 
 unsigned int chPWM[MAX_PWMS][2]; // 0: period, 1: high
@@ -348,18 +316,24 @@ int main(void) //(int argc, char *argv[])
 
         //step 2: judge current if it is arrive at rising edge time
         // static const uint8_t chan_pru_map[MAX_PWMS]= {10,8,11,9,7,6,5,4,3,2,1,0};
-#ifdef BYPASS_PWM_OUT_FOR_RCIN 
-#ifdef CROP_CONTROL_SY
-        for (index = 3; index < MAX_PWMS; index++)
-#else
-        // bypass last 4CH for multi-pwm: rcin used them
-        for (index = 4; index < MAX_PWMS; index++)
-#endif
-
-#else
         for (index = 0; index < MAX_PWMS; index++)
-#endif
         {
+#ifdef MULTI_PWM
+#ifdef CROP_CONTROL_SY
+            // borrow rcin CH1 (r31 bit2->r30 bit2) to pwm_out CH10 for CROP control
+            if((0 == index)
+              || (1 == index)
+              || (3 == index))
+#else
+            if((0 == index)
+              || (1 == index)
+              || (2 == index)
+              || (3 == index))
+#endif
+            {
+                continue;
+            }
+#endif
 
             // write back to HOST
             if(wbPeriod > 10000)
@@ -369,28 +343,17 @@ int main(void) //(int argc, char *argv[])
                     wbPeriod = 0;
                 }
 				PWM_CMD->hilo_read[index][1] = PWM_CMD->periodhi[index][1]; 
+				PWM_CMD->hilo_read[index][0] = PWM_CMD->periodhi[index][0]; 
             }
             if(TIME_GREATER(currTs64, chnObj[index].time_of_hi))
             {
-                // for aux channel, no need for magic_cmd
-                if(index <= 3)
-                {
-                    enmask = PWM_CMD->enmask; 
-			        for(ii = 0; ii < 3; ii++) 
-			        { 
-			        	chPWM[ii][0] = PWM_CMD->periodhi[ii][0]; 
-			        	chPWM[ii][1] = PWM_CMD->periodhi[ii][1]; 
-			        	if(chPWM[ii][0] <= chPWM[ii][1]) /*error configs*/ 
-			        	{ 
-			        		chPWM[ii][1] = chPWM[ii][0] - GAP; 
-			        	}
-			        } 
-                }
-                else // main channel
-                {
-                    // update configs if have any
-            	    UPDATE_CONFIGS();
-                }
+                // update configs if have any
+            	UPDATE_CONFIGS();
+// #define TEST_FAKE
+#ifdef TEST_FAKE
+				chPWM[2][1] = PRU_us(5000);
+				chPWM[2][0] = PRU_us(20000);
+#endif
 
                 // update time stamp
                 //chnObj[index].time_of_lo.time_p2 = 0;
