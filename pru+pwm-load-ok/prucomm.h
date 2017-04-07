@@ -14,9 +14,10 @@ struct pwm_config {
 	u32 lo_err;
 };
 
+// DB ZhaoYJ for clean rcin to pru0
 // AB ZhaoYJ for multi-pwm to replace ppm-sum @2016-09-13
 // GPI is not enough in PRU0, so move some of in PRU1
-#define MULTI_PWM
+// #define MULTI_PWM
 /* maximum (PRU0 + PRU1) */
 #define MAX_PWMS	12
 

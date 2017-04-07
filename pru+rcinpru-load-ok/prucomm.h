@@ -10,14 +10,15 @@
 // AB ZhaoYJ for trying to add PPMSUM decoding in PRU @2016-05-21
 // #define PPMSUM_DECODE 
 // AB ZhaoYJ for ppmsum @2016-09-13
-#define PPMSUM_PRU0_PIN 0x7
+#define SBUS_PRU0_PIN 0x7
 // AB ZhaoYJ for multi-pwm to replace ppm-sum @2016-09-13
-// #define MULTI_PWM
+// enable By ZhaoYJ@2017-04-07 for multi-pwm support
+#define MULTI_PWM
 
 #ifdef MULTI_PWM
-#define MAX_RCIN_NUM 8 // actually only CH5(ppm/s.bus), CH6
+#define MAX_RCIN_NUM 8 // actually only CH6
 #define NUM_RCIN_BUFF 64
-#define PRU0_1ST_CH 4 // rcin in pru0 start from CH5
+#define PRU0_1ST_CH 5 // common rcin in pru0 start from CH6(CH5 is fixed for SBUS)
 uint8_t pwm_map[MAX_RCIN_NUM] = {0xFF, 0xFF, 0xFF, 0xFF, 0x7, 0x5, 0x3, 0x4}; // FIXME: need to confirm
 #else
 #define MAX_RCIN_NUM 16
@@ -46,7 +47,7 @@ struct ring_buffer{
     volatile struct {
         volatile uint16_t high;
         volatile uint16_t low;
-    }multi_pwm_out[MAX_RCIN_NUM];
+    }multi_rc_in[MAX_RCIN_NUM];
 #endif
     // 
 };

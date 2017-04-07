@@ -29,14 +29,10 @@ static inline u32 read_PIEP_COUNT(void)
 }
 
 
-// AB ZhaoYJ for dynamically change aux-rcout to rcin(CH1~CH4)
-uint32_t read_pin_ch(uint8_t chn_idx){
-    return ((__R31&(1<<pwm_map[chn_idx])) != 0);
-    // return ((read_r31()&(1<<15)) != 0);
-}
 
+// DB ZhaoYJ@2017-04-07 for fixing PWM_OUT to 12
 // reduce max PWM_OUT from 12 to 8
-#define BYPASS_PWM_OUT_FOR_RCIN 
+// #define BYPASS_PWM_OUT_FOR_RCIN 
 #ifdef BYPASS_PWM_OUT_FOR_RCIN
 // borrow rcin CH1 (r31 bit2->r30 bit2) to pwm_out CH10 for CROP control
 #define CROP_CONTROL_SY
@@ -53,6 +49,12 @@ uint32_t read_pin_ch(uint8_t chn_idx){
 #define CONFIRM 2 
 
 #ifdef MULTI_PWM
+
+// AB ZhaoYJ for dynamically change aux-rcout to rcin(CH1~CH4)
+uint32_t read_pin_ch(uint8_t chn_idx){
+    return ((__R31&(1<<pwm_map[chn_idx])) != 0);
+    // return ((read_r31()&(1<<15)) != 0);
+}
     // treat all pins as pwm input
 uint8_t state_ch[MAX_RCIN_NUM];
 uint8_t last_pin_value_ch[MAX_RCIN_NUM];
@@ -263,7 +265,7 @@ int main(void) //(int argc, char *argv[])
     {
 
         // step 0: update rcin: CH1~CH4
-        decode_multi_pwms();
+        // decode_multi_pwms();
 
         //step 1 : update current time.
         currTs64.time_p1 = read_PIEP_COUNT();

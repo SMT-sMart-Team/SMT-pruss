@@ -36,7 +36,7 @@
 
 
 #define DEBOUNCE_ENABLE
-#define DEBOUNCE_TIME 0 // 1 us
+#define DEBOUNCE_TIME 100 // 500ns
 #define PULSE_NUM_PER_PERIOD 1 // 1: every pulse will be update to ARM
 
 #define WAITING 0 
@@ -79,7 +79,7 @@ void delay_us(uint32_t dly_us)
 
 
 uint32_t read_pin(void){
-    return ((__R31&(1<<PPMSUM_PRU0_PIN)) != 0);
+    return ((__R31&(1<<SBUS_PRU0_PIN)) != 0);
     // return ((read_r31()&(1<<15)) != 0);
 }
 
@@ -127,13 +127,17 @@ void decode_multi_pwms()
                         // debounce done
                         state_ch[chn_idx] = CONFIRM;
                     }
+                    else
+                    {
+                        break;
+                    }
                 }
                 else
                 {
                     // invalid pulse
                     state_ch[chn_idx] = WAITING;
+                    break;
                 }
-                break;
             case CONFIRM:
                 if(!first_ch[chn_idx])
                 {
@@ -151,11 +155,11 @@ void decode_multi_pwms()
                 //
                 if(last_pin_value_ch[chn_idx])
                 {
-                    RBUFF->multi_pwm_out[chn_idx].high = delta_time_us_ch;
+                    RBUFF->multi_rc_in[chn_idx].high = delta_time_us_ch;
                 }
                 else
                 {
-                    RBUFF->multi_pwm_out[chn_idx].low = delta_time_us_ch;
+                    RBUFF->multi_rc_in[chn_idx].low = delta_time_us_ch;
                 }
                 //
                 v=read_pin_ch(chn_idx);
@@ -184,7 +188,6 @@ int main(void)
      uint8_t state = WAITING;
      uint32_t toggle_time = 0;
      uint32_t delta_time_us = 0;
-     uint8_t pass = 0;
      uint8_t first = 1;
 #endif
 
@@ -221,8 +224,8 @@ int main(void)
         last_pin_value_ch[ii] = 0;
         first_ch[ii] = 1;
         toggle_time_ch[ii] = 0;
-        RBUFF->multi_pwm_out[ii].high = 0;
-        RBUFF->multi_pwm_out[ii].low = 0;
+        RBUFF->multi_rc_in[ii].high = 0;
+        RBUFF->multi_rc_in[ii].low = 0;
     }
 #endif
      
@@ -244,10 +247,14 @@ int main(void)
             case DEBOUNCING:
                 if(read_pin() == v) 
                 {
-                    if(DEBOUNCE_TIME <= TIME_SUB(read_PIEP_COUNT(), toggle_time))
+                    if(0 <= TIME_SUB(read_PIEP_COUNT(), toggle_time))
                     {
                         // debounce done
                         state = CONFIRM;
+                    }
+                    else
+                    {
+                        break;
                     }
                 }
                 else
@@ -273,15 +280,10 @@ int main(void)
                 RBUFF->buffer[tail_local].pin_value = last_pin_value;
                 RBUFF->buffer[tail_local].delta_t = delta_time_us;
                 tail_local = (tail_local + 1) % NUM_RING_ENTRIES;
+                RBUFF->ring_tail = tail_local;
                 // RBUFF->buffer[RBUFF->ring_tail].pin_value = v;
                 // RBUFF->buffer[RBUFF->ring_tail].delta_t = deltat;
                 // update to Host
-                pass++;
-                if(!(pass%PULSE_NUM_PER_PERIOD))
-                {
-                    pass = 0;
-                    RBUFF->ring_tail = tail_local;
-                }
                 //
                 //
                 last_pin_value = v;
@@ -293,7 +295,7 @@ int main(void)
 
 #endif
 #ifdef MULTI_PWM
-        // treat all pins as pwm input
+        // treat all pins as rc input
         decode_multi_pwms();
 #endif
      }
