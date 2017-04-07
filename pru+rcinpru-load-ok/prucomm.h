@@ -18,8 +18,8 @@
 #ifdef MULTI_PWM
 #define MAX_RCIN_NUM 8 // actually only CH6
 #define NUM_RCIN_BUFF 64
-#define PRU0_1ST_CH 5 // common rcin in pru0 start from CH6(CH5 is fixed for SBUS)
-uint8_t pwm_map[MAX_RCIN_NUM] = {0xFF, 0xFF, 0xFF, 0xFF, 0x7, 0x5, 0x3, 0x4}; // FIXME: need to confirm
+#define PRU0_1ST_CH 7 // common rcin in pru0 start from CH6(CH5 is fixed for SBUS)
+uint8_t pwm_map[MAX_RCIN_NUM] = {0xFF, 0xFF, 0xFF, 0xFF, 0x7, 0x4, 0x3, 0x5}; // FIXME: need to confirm
 #else
 #define MAX_RCIN_NUM 16
 #endif
@@ -28,7 +28,7 @@ uint8_t pwm_map[MAX_RCIN_NUM] = {0xFF, 0xFF, 0xFF, 0xFF, 0x7, 0x5, 0x3, 0x4}; //
 #define KO 0x4110 /// !beef
 
 // #define NUM_RING_ENTRIES 256
-#define NUM_RING_ENTRIES 300
+#define NUM_RING_ENTRIES 600
     
 #define PWM_CMD_MAGIC    0xf00fbaaf
 #define PWM_REPLY_MAGIC  0xbaaff00f

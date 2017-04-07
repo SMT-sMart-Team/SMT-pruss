@@ -36,7 +36,7 @@
 
 
 #define DEBOUNCE_ENABLE
-#define DEBOUNCE_TIME 100 // 500ns
+#define DEBOUNCE_TIME 0 // 500ns
 #define PULSE_NUM_PER_PERIOD 1 // 1: every pulse will be update to ARM
 
 #define WAITING 0 
@@ -101,8 +101,7 @@ void decode_multi_pwms()
     uint32_t v = 0;
     uint32_t delta_time_us_ch = 0;
 
-
-    for(chn_idx  = PRU0_1ST_CH; chn_idx < MAX_RCIN_NUM; chn_idx++)
+    for(chn_idx = PRU0_1ST_CH; chn_idx < MAX_RCIN_NUM; chn_idx++)
     {
         // not a valid channel
         if(0xFF == pwm_map[chn_idx])
@@ -121,16 +120,10 @@ void decode_multi_pwms()
                 state_ch[chn_idx] = DEBOUNCING;
                 // break;
             case DEBOUNCING:
-                if((v=read_pin_ch(chn_idx)) != last_pin_value_ch[chn_idx]) {
-                    if(DEBOUNCE_TIME <= TIME_SUB(read_PIEP_COUNT(), toggle_time_ch[chn_idx]))
-                    {
-                        // debounce done
-                        state_ch[chn_idx] = CONFIRM;
-                    }
-                    else
-                    {
-                        break;
-                    }
+                if((v=read_pin_ch(chn_idx)) != last_pin_value_ch[chn_idx]) 
+                {
+                    // debounce done
+                    state_ch[chn_idx] = CONFIRM;
                 }
                 else
                 {
@@ -182,7 +175,6 @@ int main(void)
      uint16_t ii = 0;
 
 #ifdef DEBOUNCE_ENABLE
-
 
      uint32_t v = 0; 
      uint8_t state = WAITING;
@@ -247,15 +239,17 @@ int main(void)
             case DEBOUNCING:
                 if(read_pin() == v) 
                 {
+                    state = CONFIRM;
+                    /*
                     if(0 <= TIME_SUB(read_PIEP_COUNT(), toggle_time))
                     {
                         // debounce done
-                        state = CONFIRM;
                     }
                     else
                     {
                         break;
                     }
+                    */
                 }
                 else
                 {
