@@ -17,47 +17,13 @@
 #define GPIO_CLRDATAOUT_OFFSET		0x190
 #define GPIO_SETDATAOUT_OFFSET      0x194
 
+#define TEST_TL_LED 0
+
+#define TEST_TL_PRU1 1
+
 //volatile register uint32_t __R30;
 
 volatile pruCfg CT_CFG __attribute__((cregister("PRU_CFG", near), peripheral));
-
-#if 0
-int main(void) {
-
-	uint32_t i;
-    uint32_t value;
-
-    /* GPI Mode 0, GPO Mode 0 */
-    CT_CFG.GPCFG0 = 0;
-    /* Clear SYSCFG[STANDBY_INIT] to enable OCP master port */
-    CT_CFG.SYSCFG_bit.STANDBY_INIT = 0;
-
-    uint32_t led_set_addr;
-	uint32_t led_clr_addr;
-//	uint32_t led_oe_addr;
-
-	led_set_addr = GPIO2_BASE_ADDR + GPIO_SETDATAOUT_OFFSET;
-	led_clr_addr = GPIO2_BASE_ADDR + GPIO_CLRDATAOUT_OFFSET;
-//	led_oe_addr = GPIO2_BASE_ADDR + GPIO_OE_OFFSET;
-
-	*(uint32_t*)led_set_addr |= 1 << 22;	//turn down LED0 (GPIO2_22)
-//	*(uint32_t*)led_oe_addr |= 0xfe3fffff;	//gpio2_22~24 pin output enable
-
-	while(1) {
-
-			for (i = 0; i < 3; i++) {
-				value = 1 << (i + 22);
-				*(uint32_t*)led_set_addr |= value;
-				__delay_cycles(100000000); // half-second delay
-				*(uint32_t*)led_clr_addr |= value;
-				__delay_cycles(100000000); // half-second delay
-			}
-	}
-	 /* Halt the PRU core - shouldn't get here */
-	 //__halt();
-}
-#endif
-
 
 
 #ifdef __GNUC__
@@ -257,6 +223,7 @@ unsigned int chPWM[MAX_PWMS][2]; // 0: period, 1: high
 	do \
 	{ \
 	/* enable OCP master port */ \
+	CT_CFG.SYSCFG_bit.STANDBY_INIT = 0; \
 	PRUCFG_SYSCFG &= ~SYSCFG_STANDBY_INIT; \
 	PRUCFG_SYSCFG = (PRUCFG_SYSCFG & \
 			~(SYSCFG_IDLE_MODE_M | SYSCFG_STANDBY_MODE_M)) | \
@@ -302,6 +269,8 @@ int main(void) //(int argc, char *argv[])
         // default PWM
         chPWM[index][0] = PRU_us(2500); // 400Hz
         chPWM[index][1] = PRU_us(1100);
+        // chPWM[index][0] = PRU_us(2500); // 400Hz
+        // chPWM[index][1] = PRU_us(1100);
         PWM_CMD->hilo_read[index][0] = 0;
         PWM_CMD->hilo_read[index][1] = 0;
         PWM_CMD->periodhi[index][0] = 0;
@@ -319,8 +288,52 @@ int main(void) //(int argc, char *argv[])
     PWM_CMD->keep_alive = 0xFFFF;
     PWM_CMD->time_out = TIME_OUT_DEFAULT; // default should be 10 second
 
+#if TEST_TL_LED
+	uint32_t i;
+    uint32_t value;
+    /* GPI Mode 0, GPO Mode 0 */
+    CT_CFG.GPCFG0 = 0;
+    /* Clear SYSCFG[STANDBY_INIT] to enable OCP master port */
+    CT_CFG.SYSCFG_bit.STANDBY_INIT = 0;
+
+    uint32_t led_set_addr;
+	uint32_t led_clr_addr;
+//	uint32_t led_oe_addr;
+
+	led_set_addr = GPIO2_BASE_ADDR + GPIO_SETDATAOUT_OFFSET;
+	led_clr_addr = GPIO2_BASE_ADDR + GPIO_CLRDATAOUT_OFFSET;
+//	led_oe_addr = GPIO2_BASE_ADDR + GPIO_OE_OFFSET;
+
+	*(uint32_t*)led_set_addr |= 1 << 22;	//turn down LED0 (GPIO2_22)
+//	*(uint32_t*)led_oe_addr |= 0xfe3fffff;	//gpio2_22~24 pin output enable
+
+	while(1) {
+
+			for (i = 0; i < 3; i++) {
+				value = 1 << (i + 22);
+				*(uint32_t*)led_set_addr |= value;
+				__delay_cycles(100000000); // half-second delay
+				*(uint32_t*)led_clr_addr |= value;
+				__delay_cycles(100000000); // half-second delay
+			}
+	}
+#endif
+
+#if TEST_TL_PRU1
+        // CT_CFG.GPCFG0 = 0;
+        /* Clear SYSCFG[STANDBY_INIT] to enable OCP master port */
+        // CT_CFG.SYSCFG_bit.STANDBY_INIT = 0;
+
+        uint32_t led_set_addr;
+    	uint32_t led_clr_addr;
+        uint32_t value;
+        value = 1 << (1 + 22);
+    	led_set_addr = GPIO2_BASE_ADDR + GPIO_SETDATAOUT_OFFSET;
+    	led_clr_addr = GPIO2_BASE_ADDR + GPIO_CLRDATAOUT_OFFSET;
+#else
     // wait for host start
     while(PWM_CMD_KEEP_ALIVE != PWM_CMD->keep_alive);
+#endif
     PWM_CMD->keep_alive = PWM_REPLY_KEEP_ALIVE;
 
     // record time stamp
@@ -372,6 +385,9 @@ int main(void) //(int argc, char *argv[])
         }
 #endif
 
+#if TEST_TL_PRU1
+
+#else
         // make sure host is alive when time is up to check
         if(TIME_GREATER(currTs64, keepAliveTs64))
         {
@@ -396,6 +412,7 @@ int main(void) //(int argc, char *argv[])
                 }
             }
         }
+#endif
 
         //step 2: judge current if it is arrive at rising edge time
         for (index = 0; index < MAX_PWMS; index++)
@@ -411,8 +428,12 @@ int main(void) //(int argc, char *argv[])
             }
             if(TIME_GREATER(currTs64, chnObj[index].time_of_hi))
             {
+#if TEST_TL_PRU1
+            	enmask = 0xFFFF;
+#else
                 // update configs if have any
             	UPDATE_CONFIGS();
+#endif
 
                 // update time stamp
                 //chnObj[index].time_of_lo.time_p2 = 0;
@@ -430,10 +451,16 @@ int main(void) //(int argc, char *argv[])
     				    temp |= (1U<<index);
                         __R30 = temp;
 #else
+
+#if TEST_TL_PRU1
+                        __R30 = 0xFFFFFFFF;
+                        *(uint32_t*)led_set_addr |= value;
+#else
     				    // __R30 |= (msk&(1U<<i));
                         __R30 |= (1U << index); //pull up
 #endif
 
+#endif
                 }
                 else // make sure low when disable
                 {
@@ -462,8 +489,15 @@ int main(void) //(int argc, char *argv[])
     				    temp &= ~(1u << index);
                         __R30 = temp;
 #else
-        			// __R30 &= ~(1U<<i);
-                    __R30 &= ~(1U << index); //pull down
+
+#if TEST_TL_PRU1
+                        __R30 = 0x0;
+                        *(uint32_t*)led_clr_addr |= value;
+#else
+                        // __R30 &= ~(1U<<i);
+                        __R30 &= ~(1U << index); //pull down
+#endif
+
 #endif
                 }
 

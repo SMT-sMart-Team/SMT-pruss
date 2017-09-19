@@ -1,7 +1,7 @@
 ******************************************************************************
                      PRU Linker PC v2.1.4                      
 ******************************************************************************
->> Linked Tue Sep 19 19:15:34 2017
+>> Linked Tue Sep 19 21:24:39 2017
 
 OUTPUT FILE NAME:   <Farring-pru1.out>
 ENTRY POINT SYMBOL: "_c_int00_noinit_noargs_noexit"  address: 00000000
@@ -12,7 +12,7 @@ MEMORY CONFIGURATION
          name            origin    length      used     unused   attr    fill
 ----------------------  --------  ---------  --------  --------  ----  --------
 PAGE 0:
-  PRU_IMEM              00000000   00002000  00000bdc  00001424  RWIX
+  PRU_IMEM              00000000   00002000  00000a58  000015a8  RWIX
 
 PAGE 1:
   PRU_DMEM_0_1          00000000   00002000  000001a4  00001e5c  RWIX
@@ -21,7 +21,7 @@ PAGE 1:
 PAGE 2:
   PRU_SHAREDMEM         00010000   00003000  00000000  00003000  RWIX
   PRU_INTC              00020000   00001504  00000000  00001504  RWIX
-  PRU_CFG               00026000   00000044  00000000  00000044  RWIX
+  PRU_CFG               00026000   00000044  00000044  00000000  RWIX
   PRU_UART              00028000   00000038  00000000  00000038  RWIX
   PRU_IEP               0002e000   0000031c  00000000  0000031c  RWIX
   PRU_ECAP              00030000   00000060  00000000  00000060  RWIX
@@ -60,14 +60,14 @@ section   page    origin      length       input sections
 *          0    00000000    00000014     
                   00000000    00000014     rtspruv3_le.lib : boot_special.obj (.text:_c_int00_noinit_noargs_noexit)
 
-.text      0    00000014    00000bc8     
-                  00000014    000007f0     main.obj (.text:main)
-                  00000804    00000260     main.obj (.text:decode_multi_pwms)
-                  00000a64    00000114     rtspruv3_le.lib : divu_c.obj (.text:__pruabi_divu)
-                  00000b78    00000044     main.obj (.text:read_pin_ch)
-                  00000bbc    00000010     main.obj (.text:read_PIEP_COUNT)
-                  00000bcc    00000008     rtspruv3_le.lib : exit.obj (.text:abort)
-                  00000bd4    00000008                     : exit.obj (.text:loader_exit)
+.text      0    00000014    00000a44     
+                  00000014    0000066c     main.obj (.text:main)
+                  00000680    00000260     main.obj (.text:decode_multi_pwms)
+                  000008e0    00000114     rtspruv3_le.lib : divu_c.obj (.text:__pruabi_divu)
+                  000009f4    00000044     main.obj (.text:read_pin_ch)
+                  00000a38    00000010     main.obj (.text:read_PIEP_COUNT)
+                  00000a48    00000008     rtspruv3_le.lib : exit.obj (.text:abort)
+                  00000a50    00000008                     : exit.obj (.text:loader_exit)
 
 .stack     1    00000000    00000100     UNINITIALIZED
                   00000000    00000004     rtspruv3_le.lib : boot.obj (.stack)
@@ -90,6 +90,19 @@ section   page    origin      length       input sections
 *          1    0000018c    00000014     
                   0000018c    00000014     main.obj (.resource_table:retain)
 
+.creg.PRU_CFG.noload.near 
+*          2    00026000    00000044     NOLOAD SECTION
+                  00026000    00000044     main.obj (.creg.PRU_CFG.noload.near)
+
+.creg.PRU_CFG.near 
+*          2    00026044    00000000     UNINITIALIZED
+
+.creg.PRU_CFG.noload.far 
+*          2    00026044    00000000     NOLOAD SECTION
+
+.creg.PRU_CFG.far 
+*          2    00026044    00000000     UNINITIALIZED
+
 
 SEGMENT ATTRIBUTES
 
@@ -103,7 +116,8 @@ GLOBAL SYMBOLS: SORTED ALPHABETICALLY BY Name
 
 page  address   name                         
 ----  -------   ----                         
-0     00000bd4  C$$EXIT                      
+0     00000a50  C$$EXIT                      
+2     00026000  CT_CFG                       
 abs   481cc000  __PRU_CREG_BASE_DCAN0        
 abs   481d0000  __PRU_CREG_BASE_DCAN1        
 abs   80000000  __PRU_CREG_BASE_DDR          
@@ -172,20 +186,20 @@ abs   0000000c  __PRU_CREG_UART2
 abs   00000100  __TI_STACK_SIZE              
 abs   ffffffff  __binit__                    
 abs   ffffffff  __c_args__                   
-0     00000a64  __pruabi_divu                
+0     000008e0  __pruabi_divu                
 0     00000000  _c_int00_noinit_noargs_noexit
 1     00000000  _stack                       
-0     00000bcc  abort                        
+0     00000a48  abort                        
 abs   ffffffff  binit                        
 1     00000100  chPWM                        
-0     00000804  decode_multi_pwms            
+0     00000680  decode_multi_pwms            
 1     00000180  first_ch                     
 1     00000184  last_pin_value_ch            
 1     00000160  last_time_ch                 
 0     00000014  main                         
 1     0000018c  pru_remoteproc_ResourceTable 
 1     000001a0  pwm_map                      
-0     00000b78  read_pin_ch                  
+0     000009f4  read_pin_ch                  
 1     00000188  state_ch                     
 1     00000170  toggle_time_ch               
 
@@ -196,11 +210,11 @@ page  address   name
 ----  -------   ----                         
 0     00000000  _c_int00_noinit_noargs_noexit
 0     00000014  main                         
-0     00000804  decode_multi_pwms            
-0     00000a64  __pruabi_divu                
-0     00000b78  read_pin_ch                  
-0     00000bcc  abort                        
-0     00000bd4  C$$EXIT                      
+0     00000680  decode_multi_pwms            
+0     000008e0  __pruabi_divu                
+0     000009f4  read_pin_ch                  
+0     00000a48  abort                        
+0     00000a50  C$$EXIT                      
 1     00000000  _stack                       
 1     00000100  __TI_STACK_END               
 1     00000100  chPWM                        
@@ -211,6 +225,7 @@ page  address   name
 1     00000188  state_ch                     
 1     0000018c  pru_remoteproc_ResourceTable 
 1     000001a0  pwm_map                      
+2     00026000  CT_CFG                       
 abs   00000000  __PRU_CREG_BASE_PRU_DMEM_0_1 
 abs   00000000  __PRU_CREG_PRU_INTC          
 abs   00000001  __PRU_CREG_DMTIMER2          
@@ -280,4 +295,4 @@ abs   ffffffff  __binit__
 abs   ffffffff  __c_args__                   
 abs   ffffffff  binit                        
 
-[85 symbols]
+[86 symbols]

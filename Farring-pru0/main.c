@@ -17,6 +17,8 @@
 #define GPIO_CLRDATAOUT_OFFSET		0x190
 #define GPIO_SETDATAOUT_OFFSET      0x194
 
+#define TEST_TL_LED 0
+
 //volatile register uint32_t __R30;
 
 volatile pruCfg CT_CFG __attribute__((cregister("PRU_CFG", near), peripheral));
@@ -279,6 +281,37 @@ int main(void)
         RBUFF->multi_pwm_out[ii].high = 0;
         RBUFF->multi_pwm_out[ii].low = 0;
     }
+#endif
+
+#if TEST_TL_LED
+	uint32_t i;
+    uint32_t value;
+    /* GPI Mode 0, GPO Mode 0 */
+    CT_CFG.GPCFG0 = 0;
+    /* Clear SYSCFG[STANDBY_INIT] to enable OCP master port */
+    CT_CFG.SYSCFG_bit.STANDBY_INIT = 0;
+
+    uint32_t led_set_addr;
+	uint32_t led_clr_addr;
+//	uint32_t led_oe_addr;
+
+	led_set_addr = GPIO2_BASE_ADDR + GPIO_SETDATAOUT_OFFSET;
+	led_clr_addr = GPIO2_BASE_ADDR + GPIO_CLRDATAOUT_OFFSET;
+//	led_oe_addr = GPIO2_BASE_ADDR + GPIO_OE_OFFSET;
+
+	*(uint32_t*)led_set_addr |= 1 << 22;	//turn down LED0 (GPIO2_22)
+//	*(uint32_t*)led_oe_addr |= 0xfe3fffff;	//gpio2_22~24 pin output enable
+
+	while(1) {
+
+			for (i = 0; i < 3; i++) {
+				value = 1 << (i + 22);
+				*(uint32_t*)led_set_addr |= value;
+				__delay_cycles(100000000); // half-second delay
+				*(uint32_t*)led_clr_addr |= value;
+				__delay_cycles(100000000); // half-second delay
+			}
+	}
 #endif
 
 
