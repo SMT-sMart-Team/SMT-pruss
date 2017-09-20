@@ -1,7 +1,7 @@
 ******************************************************************************
                      PRU Linker PC v2.1.4                      
 ******************************************************************************
->> Linked Tue Sep 19 21:24:39 2017
+>> Linked Wed Sep 20 09:37:57 2017
 
 OUTPUT FILE NAME:   <Farring-pru1.out>
 ENTRY POINT SYMBOL: "_c_int00_noinit_noargs_noexit"  address: 00000000

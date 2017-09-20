@@ -19,7 +19,7 @@
 
 #define TEST_TL_LED 0
 
-//volatile register uint32_t __R30;
+volatile register uint32_t __R30;
 
 volatile pruCfg CT_CFG __attribute__((cregister("PRU_CFG", near), peripheral));
 
@@ -103,6 +103,8 @@ int main(void) {
 #define WAITING 0
 #define DEBOUNCING 1
 #define CONFIRM 2
+
+#define TEST_TL_PRU0 1
 
 
 #ifdef __GNUC__
@@ -317,6 +319,14 @@ int main(void)
 
      while (1) {
 
+#if TEST_TL_PRU0
+    	 	__R30 = 0x3;
+			__delay_cycles(2500000); // half-second delay
+			__R30 = 0x0;
+			__delay_cycles(1100000); // half-second delay
+#else
+
+
 #if defined(DEBOUNCE_ENABLE)
 
         switch(state)
@@ -394,7 +404,10 @@ int main(void)
         // treat all pins as pwm input
         decode_multi_pwms();
 #endif
+#endif
+
      }
+
 
 }
 

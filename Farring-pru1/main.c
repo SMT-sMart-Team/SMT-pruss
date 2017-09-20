@@ -267,8 +267,8 @@ int main(void) //(int argc, char *argv[])
         chnObj[index].time_of_lo.time_p2 = 0;
         chnObj[index].time_of_lo.time_p1 = 0;
         // default PWM
-        chPWM[index][0] = PRU_us(2500); // 400Hz
-        chPWM[index][1] = PRU_us(1100);
+        chPWM[index][0] = PRU_us(2500000); // 400Hz
+        chPWM[index][1] = PRU_us(1100000);
         // chPWM[index][0] = PRU_us(2500); // 400Hz
         // chPWM[index][1] = PRU_us(1100);
         PWM_CMD->hilo_read[index][0] = 0;
