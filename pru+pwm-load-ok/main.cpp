@@ -166,11 +166,23 @@ unsigned int chPWM[MAX_PWMS][2]; // 0: period, 1: high
 #define UPDATE_CONFIGS() \
 	do \
 	{	\
+        /*make sure just magic_sync motor_out 8ch*/ \
+        /*here is just AUX channel, so no need to magic_sync*/ \
+		for(ii = 0; ii < 4; ii++) \
+		{ \
+			chPWM[ii][0] = PWM_CMD->periodhi[ii][0]; \
+			chPWM[ii][1] = PWM_CMD->periodhi[ii][1]; \
+			if(chPWM[ii][0] <= chPWM[ii][1]) /*error configs*/ \
+			{ \
+				chPWM[ii][1] = chPWM[ii][0] - GAP; \
+			} \
+		} \
 		if(PWM_CMD->magic == PWM_CMD_MAGIC) \
 		{	\
 			PWM_CMD->magic = PWM_REPLY_MAGIC; \
             enmask = PWM_CMD->enmask; \
-			for(ii = 0; ii < MAX_PWMS; ii++) \
+            /*make sure just magic_sync motor_out 8ch*/ \
+			for(ii = 4; ii < MAX_PWMS; ii++) \
 			{ \
 				chPWM[ii][0] = PWM_CMD->periodhi[ii][0]; \
 				chPWM[ii][1] = PWM_CMD->periodhi[ii][1]; \
